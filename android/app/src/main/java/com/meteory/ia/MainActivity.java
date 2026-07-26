@@ -85,21 +85,26 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void pedirPermisoCaptura() {
-        // Detener servicios de superposición temporalmente para evitar que Android ponga en gris el botón "Iniciar ahora"
-        try {
-            stopService(new Intent(this, ServicioBolitaFlotante.class));
-            stopService(new Intent(this, ServicioEscaneoPantalla.class));
-        } catch (Exception e) {}
-
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-            if (mProjectionManager != null) {
-                lanzadorCaptura.launch(mProjectionManager.createScreenCaptureIntent());
-            }
-        }, 200);
+        mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        if (mProjectionManager != null) {
+            lanzadorCaptura.launch(mProjectionManager.createScreenCaptureIntent());
+        }
     }
 
     private void iniciarServiciosModoGaming() {
+        // ✅ PEDIR EXPLÍCITAMENTE QUITAR OPTIMIZACIÓN DE BATERÍA EN HONOR / ANDROID
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                String paquete = getPackageName();
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(paquete)) {
+                    Intent intentBat = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intentBat.setData(Uri.parse("package:" + paquete));
+                    startActivity(intentBat);
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }
+
         Intent iBolita = new Intent(this, ServicioBolitaFlotante.class);
         iBolita.putExtra("isScanningActive", true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
