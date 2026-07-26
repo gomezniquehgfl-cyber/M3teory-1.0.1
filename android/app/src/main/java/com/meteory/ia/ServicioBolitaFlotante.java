@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.Locale;
 
 public class ServicioBolitaFlotante extends Service {
+    // Native Foreground Service with WindowManager Overlay - Updated for GitHub Actions & Android Native Build 2026-07-26
 
     private WindowManager wm;
     private View bolita;
@@ -265,10 +266,9 @@ public class ServicioBolitaFlotante extends Service {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
 
-        int sizePx = (int) (72 * getResources().getDisplayMetrics().density);
         params = new WindowManager.LayoutParams(
-                sizePx,
-                sizePx,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 tipo,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
