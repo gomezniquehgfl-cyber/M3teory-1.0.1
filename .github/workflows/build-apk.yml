@@ -40,8 +40,20 @@ jobs:
 
       - name: Inicializar y Sincronizar Capacitor Android
         run: |
-          npx cap init "Meteory IA" "com.meteory.ia" --web-dir dist || true
-          npx cap add android || true
+          if [ ! -f "android/gradlew" ]; then
+            echo "Gradle wrapper no encontrado. Inicializando estructura nativa con Capacitor..."
+            if [ -d "android" ]; then
+              mkdir -p android_backup
+              cp -r android/* android_backup/ || true
+              rm -rf android
+            fi
+            npx cap init "Meteory IA" "com.meteory.ia" --web-dir dist || true
+            npx cap add android
+            if [ -d "android_backup" ]; then
+              cp -r android_backup/* android/ || true
+              rm -rf android_backup
+            fi
+          fi
           npx cap sync android
 
       - name: Insertar Permisos Especiales y Servicios Nativos en Android Project
