@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tv_burbuja_texto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxWidth="260dp"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="10dp"
+    android:background="@drawable/fondo_bolita"
+    android:textColor="#FFFFFF"
+    android:textSize="12sp"
+    android:elevation="14dp" />

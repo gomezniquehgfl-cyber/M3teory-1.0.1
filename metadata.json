@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Meteory IA 1.0.1",
+  "description": "Asistente inteligente con temática espacial estelar de estilo futurista oscuro, impulsada por Gemini 2.5 Flash.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

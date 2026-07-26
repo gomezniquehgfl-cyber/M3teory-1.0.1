@@ -1,0 +1,6 @@
+{
+  "appId": "com.meteory.ia",
+  "appName": "Meteory IA",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

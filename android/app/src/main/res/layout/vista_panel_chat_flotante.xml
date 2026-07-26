@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/fondo_panel_chat"
+    android:elevation="16dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="💬 Meteory IA"
+            android:textColor="#00FF88"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true" />
+
+        <TextView
+            android:id="@+id/btn_cerrar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✕"
+            android:textColor="#FF4444"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="8dp"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:clickable="true"
+            android:focusable="true" />
+    </RelativeLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <EditText
+            android:id="@+id/et_pregunta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Pregúntame lo que quieras..."
+            android:textColorHint="#88FFFFFF"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:background="#3300E5FF"
+            android:padding="8dp"
+            android:maxLines="2" />
+
+        <Button
+            android:id="@+id/btn_enviar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="➤"
+            android:textColor="#000000"
+            android:textSize="14sp"
+            android:backgroundTint="#00FF88"
+            android:minWidth="40dp"
+            android:layout_marginLeft="4dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:weightSum="4"
+        android:layout_marginBottom="8dp">
+
+        <Button
+            android:id="@+id/btn_consejo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="✨ Consejo"
+            android:textColor="#00FF88"
+            android:textSize="9sp"
+            android:backgroundTint="#1A00FF88"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_risa"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="😂 Risa"
+            android:textColor="#FFD700"
+            android:textSize="9sp"
+            android:backgroundTint="#1AFFD700"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_burla"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="😏 Burla"
+            android:textColor="#FF8800"
+            android:textSize="9sp"
+            android:backgroundTint="#1AFF8800"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_analizar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📊 Analizar"
+            android:textColor="#00E5FF"
+            android:textSize="9sp"
+            android:backgroundTint="#1A00E5FF"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_respuesta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="60dp"
+        android:maxHeight="150dp"
+        android:text="Toca una opción o escribe para comenzar."
+        android:textColor="#E0FFFFFF"
+        android:textSize="11sp"
+        android:padding="8dp"
+        android:background="#22000000"
+        android:scrollbars="vertical" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💡 Responde con voz en alto"
+        android:textColor="#88FFFFFF"
+        android:textSize="9sp"
+        android:layout_marginTop="4dp"
+        android:layout_gravity="right" />
+</LinearLayout>
