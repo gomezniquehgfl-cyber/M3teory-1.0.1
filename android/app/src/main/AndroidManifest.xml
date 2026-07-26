@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.REAL_GET_PACKAGE_NAME" />
     <uses-permission android:name="android.permission.GET_TOP_ACTIVITY_INFO" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
@@ -51,43 +52,13 @@
             </intent-filter>
         </activity>
 
-        <service android:name="com.meteory.ia.ServicioBolitaFlotante" android:exported="false" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
-        </service>
-        <service android:name="com.meteory.ia.ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name="com.meteory.ia.ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="specialUse" />
-
-    
-        
-        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
-    
-        
-        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
-    
-        
-        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
-    
-        
-        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
-    
-        
-        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
-    
+        <!-- METEORY SERVICES START -->
         <service android:name=".ServicioBolitaFlotante" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
         </service>
         <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  
+        <!-- METEORY SERVICES END -->
+
     </application>
 </manifest>

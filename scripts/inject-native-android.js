@@ -1495,19 +1495,24 @@ if (fs.existsSync(manifestPath)) {
   }
 
   const services = `
+        <!-- METEORY SERVICES START -->
         <service android:name=".ServicioBolitaFlotante" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
         </service>
         <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
-  `;
+        <!-- METEORY SERVICES END -->`;
 
-  // Remove existing services definition to cleanly replace with updated ones
-  xml = xml.replace(/<service android:name="\.ServicioBolitaFlotante"[\s\S]*?<\/service>/g, '');
-  xml = xml.replace(/<service android:name="\.ServicioAudioVoz"[\s\S]*?<\/service>/g, '');
-  xml = xml.replace(/<service android:name="\.ServicioEscaneoPantalla"[\s\S]*?<\/service>/g, '');
-
-  xml = xml.replace('</application>', `${services}\n    </application>`);
+  // Remove existing services definition using the clean comments-based delimiters
+  if (xml.includes('<!-- METEORY SERVICES START -->')) {
+    xml = xml.replace(/<!-- METEORY SERVICES START -->[\s\S]*?<!-- METEORY SERVICES END -->/g, services.trim());
+  } else {
+    // Legacy fallback just in case: remove old-style raw definitions and insert block cleanly
+    xml = xml.replace(/<service\s+android:name="(?:com\.meteory\.ia\.)?\.?ServicioBolitaFlotante"[\s\S]*?(?:<\/service>|\/>)/gi, '');
+    xml = xml.replace(/<service\s+android:name="(?:com\.meteory\.ia\.)?\.?ServicioAudioVoz"[\s\S]*?(?:<\/service>|\/>)/gi, '');
+    xml = xml.replace(/<service\s+android:name="(?:com\.meteory\.ia\.)?\.?ServicioEscaneoPantalla"[\s\S]*?(?:<\/service>|\/>)/gi, '');
+    xml = xml.replace('</application>', `${services}\n    </application>`);
+  }
 
   fs.writeFileSync(manifestPath, xml);
   console.log('Successfully updated AndroidManifest.xml and injected native Java/Capacitor files.');
