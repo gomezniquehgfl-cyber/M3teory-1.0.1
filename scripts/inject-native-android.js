@@ -1081,7 +1081,9 @@ if (fs.existsSync(manifestPath)) {
     xml = xml.replace('<application', `${permissions}\n    <application`);
   }
 
-  xml = xml.replace('<application', '<application android:hasCode="true" android:requestLegacyExternalStorage="true" android:exported="true" android:usesCleartextTraffic="true" android:largeHeap="true" android:hardwareAccelerated="true"');
+  if (!xml.includes('android:largeHeap="true"')) {
+    xml = xml.replace('<application', '<application android:hasCode="true" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true" android:largeHeap="true" android:hardwareAccelerated="true"');
+  }
 
   const services = `
         <service android:name=".ServicioBolitaFlotante" android:exported="false" android:foregroundServiceType="specialUse">
