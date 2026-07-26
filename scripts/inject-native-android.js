@@ -355,9 +355,17 @@ public class ServicioBolitaFlotante extends Service {
         }
         Notification.Builder nb = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 new Notification.Builder(this, id) : new Notification.Builder(this);
-        startForeground(3030, nb.setContentTitle("🎮 Meteory IA Modo Gaming")
+        
+        Notification notif = nb.setContentTitle("🎮 Meteory IA Modo Gaming")
                 .setContentText("Monitor FPS y Asistente activo")
-                .setSmallIcon(android.R.drawable.ic_menu_view).build());
+                .setSmallIcon(android.R.drawable.ic_menu_view)
+                .build();
+
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (UPSIDE_DOWN_CAKE)
+            startForeground(3030, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(3030, notif);
+        }
     }
 
     private void crearBolita() {
@@ -1048,7 +1056,11 @@ public class ServicioEscaneoPantalla extends Service {
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .build();
             
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+            startForeground(8888, notif, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(8888, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
             startForeground(8888, notif);
@@ -1286,7 +1298,10 @@ public class MainActivity extends BridgeActivity {
                     if (mCall != null) {
                         mCall.resolve();
                     }
-                    cerrarAppCompletamente();
+                    // Esperar 700ms antes de cerrar la app completamente para que se dibuje la bolita
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        cerrarAppCompletamente();
+                    }, 700);
                 } else {
                     if (mCall != null) {
                         mCall.reject("PERMISO_CAPTURA_DENEGADO");
@@ -1324,13 +1339,15 @@ public class MainActivity extends BridgeActivity {
             startService(iBolita);
         }
 
-        Intent iEscaneo = new Intent(this, ServicioEscaneoPantalla.class);
         ServicioEscaneoPantalla.tokenMediaProjection = mMediaProjection;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(iEscaneo);
-        } else {
-            startService(iEscaneo);
-        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            Intent iEscaneo = new Intent(this, ServicioEscaneoPantalla.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(iEscaneo);
+            } else {
+                startService(iEscaneo);
+            }
+        }, 300);
     }
 
     private void cerrarAppCompletamente() {
@@ -1579,6 +1596,7 @@ if (fs.existsSync(manifestPath)) {
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   `;
 
   // Always replace permissions cleanly to prevent duplicates

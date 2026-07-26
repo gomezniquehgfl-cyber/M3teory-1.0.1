@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 
 public class ServicioEscaneoPantalla extends Service {
+    public static MediaProjection tokenMediaProjection;
     private static final String CANAL = "CANAL_ESCANEO_METEORY";
     private MediaProjection mediaProjection;
     private VirtualDisplay virtualDisplay;
@@ -82,12 +83,18 @@ public class ServicioEscaneoPantalla extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
+        if (tokenMediaProjection != null) {
+            iniciarMediaProjectionConToken();
+        } else if (intent != null) {
             int resultCode = intent.getIntExtra("resultCode", 0);
             Intent data = intent.getParcelableExtra("data");
             if (resultCode != 0 && data != null) {
                 iniciarMediaProjection(resultCode, data);
+            } else {
+                stopSelf();
             }
+        } else {
+            stopSelf();
         }
         return START_NOT_STICKY;
     }
@@ -109,10 +116,41 @@ public class ServicioEscaneoPantalla extends Service {
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .build();
             
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+            startForeground(8888, notif, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(8888, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
             startForeground(8888, notif);
+        }
+    }
+
+    private void iniciarMediaProjectionConToken() {
+        try {
+            mediaProjection = tokenMediaProjection;
+            if (mediaProjection != null) {
+                WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                DisplayMetrics metrics = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(metrics);
+                screenDensity = metrics.densityDpi;
+                
+                imageReader = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 2);
+                virtualDisplay = mediaProjection.createVirtualDisplay(
+                    "MeteoryEscaneo",
+                    captureWidth, captureHeight, screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader.getSurface(), null, null
+                );
+                
+                handler.postDelayed(captureRunnable, 5000);
+            } else {
+                stopSelf();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            stopSelf();
         }
     }
 

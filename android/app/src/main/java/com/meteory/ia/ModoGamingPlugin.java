@@ -46,28 +46,23 @@ public class ModoGamingPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void activarModoGaming(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(getContext())) {
-            call.reject("SIN_PERMISO");
-            return;
-        }
-
+    public void activarModoGaming(final PluginCall call) {
         String serverUrl = call.getString("serverUrl", "http://10.0.2.2:3000");
         getContext().getSharedPreferences("MeteoryPrefs", Context.MODE_PRIVATE)
             .edit()
             .putString("serverUrl", serverUrl)
             .apply();
 
-        llamadaGuardada = call;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            android.media.projection.MediaProjectionManager mpm = (android.media.projection.MediaProjectionManager) 
-                getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-            Intent captureIntent = mpm.createScreenCaptureIntent();
-            startActivityForResult(call, captureIntent, CODIGO_PANTALLA);
+        if (getActivity() != null && getActivity() instanceof MainActivity) {
+            final MainActivity act = (MainActivity) getActivity();
+            getActivity().runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    act.verificarPermisosYIniciarModoGaming(call);
+                }
+            });
         } else {
-            iniciarServicios(android.app.Activity.RESULT_CANCELED, null);
-            call.resolve();
+            call.reject("MainActivity no disponible");
         }
     }
 
@@ -78,36 +73,6 @@ public class ModoGamingPlugin extends Plugin {
         call.resolve();
     }
 
-    private void iniciarServicios(int resultCode, Intent data) {
-        Context ctx = getContext();
-        boolean isScanningActive = (resultCode == android.app.Activity.RESULT_OK && data != null);
-
-        // Start ServicioBolitaFlotante
-        Intent bolitaIntent = new Intent(ctx, ServicioBolitaFlotante.class);
-        bolitaIntent.putExtra("isScanningActive", isScanningActive);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ctx.startForegroundService(bolitaIntent);
-        } else {
-            ctx.startService(bolitaIntent);
-        }
-
-        // Start ServicioEscaneoPantalla if accepted
-        if (isScanningActive) {
-            Intent escaneoIntent = new Intent(ctx, ServicioEscaneoPantalla.class);
-            escaneoIntent.putExtra("resultCode", resultCode);
-            escaneoIntent.putExtra("data", data);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ctx.startForegroundService(escaneoIntent);
-            } else {
-                ctx.startService(escaneoIntent);
-            }
-        }
-
-        if (getActivity() != null) {
-            getActivity().moveTaskToBack(true);
-        }
-    }
-
     @Override
     protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
         super.handleOnActivityResult(requestCode, resultCode, data);
@@ -115,10 +80,6 @@ public class ModoGamingPlugin extends Plugin {
             boolean ok = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
             if (ok) llamadaGuardada.resolve();
             else llamadaGuardada.reject("PERMISO_DENEGADO");
-            llamadaGuardada = null;
-        } else if (requestCode == CODIGO_PANTALLA && llamadaGuardada != null) {
-            iniciarServicios(resultCode, data);
-            llamadaGuardada.resolve();
             llamadaGuardada = null;
         }
     }

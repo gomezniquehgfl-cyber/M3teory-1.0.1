@@ -166,9 +166,17 @@ public class ServicioBolitaFlotante extends Service {
         }
         Notification.Builder nb = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 new Notification.Builder(this, id) : new Notification.Builder(this);
-        startForeground(3030, nb.setContentTitle("🎮 Meteory IA Modo Gaming")
+        
+        Notification notif = nb.setContentTitle("🎮 Meteory IA Modo Gaming")
                 .setContentText("Monitor FPS y Asistente activo")
-                .setSmallIcon(android.R.drawable.ic_menu_view).build());
+                .setSmallIcon(android.R.drawable.ic_menu_view)
+                .build();
+
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (UPSIDE_DOWN_CAKE)
+            startForeground(3030, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(3030, notif);
+        }
     }
 
     private void crearBolita() {
@@ -408,8 +416,8 @@ public class ServicioBolitaFlotante extends Service {
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setDoOutput(true);
                     
-                    String escapedPrompt = prompt.replace(""", "\"");
-                    String jsonPayload = "{"message":"" + escapedPrompt + ""}";
+                    String escapedPrompt = prompt.replace("\"", "\\\"");
+                    String jsonPayload = "{\"message\":\"" + escapedPrompt + "\"}";
                     
                     java.io.OutputStream os = conn.getOutputStream();
                     os.write(jsonPayload.getBytes("UTF-8"));
