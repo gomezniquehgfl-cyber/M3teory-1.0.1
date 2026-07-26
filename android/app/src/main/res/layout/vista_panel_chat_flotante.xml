@@ -15,9 +15,9 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="💬 Meteory IA"
+            android:text="🎮 METEORY IA ASSISTANT | Niquel Gómez"
             android:textColor="#00FF88"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:layout_alignParentLeft="true"
             android:layout_centerVertical="true" />
@@ -41,31 +41,84 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
+        android:background="#22000000"
+        android:padding="6dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical">
 
-        <EditText
-            android:id="@+id/et_pregunta"
+        <TextView
+            android:id="@+id/tv_rendimiento"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Pregúntame lo que quieras..."
-            android:textColorHint="#88FFFFFF"
+            android:text="Rendimiento: Excelente"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:background="#3300E5FF"
-            android:padding="8dp"
-            android:maxLines="2" />
+            android:textSize="9sp" />
 
-        <Button
-            android:id="@+id/btn_enviar"
+        <TextView
+            android:id="@+id/tv_fps_panel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="➤"
-            android:textColor="#000000"
-            android:textSize="14sp"
-            android:backgroundTint="#00FF88"
-            android:minWidth="40dp"
-            android:layout_marginLeft="4dp" />
+            android:text="60 FPS"
+            android:textColor="#00FF88"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:layout_marginRight="8dp" />
+
+        <TextView
+            android:id="@+id/tv_gama"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Gama Alta"
+            android:textColor="#00E5FF"
+            android:textSize="9sp"
+            android:layout_marginRight="8dp" />
+
+        <Button
+            android:id="@+id/btn_eco"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ECO: OFF"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:background="@drawable/fondo_boton_rojo"
+            android:minWidth="50dp"
+            android:minHeight="24dp"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="JUEGO O APP ABIERTA: "
+            android:textColor="#88FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_juego_detectado"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="desconocido"
+            android:textColor="#00E5FF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spinner_juego"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/fondo_boton_cyan" />
     </LinearLayout>
 
     <LinearLayout
@@ -82,8 +135,8 @@
             android:layout_weight="1"
             android:text="✨ Consejo"
             android:textColor="#00FF88"
-            android:textSize="9sp"
-            android:backgroundTint="#1A00FF88"
+            android:textSize="8sp"
+            android:background="@drawable/fondo_boton_verde"
             android:padding="2dp"
             android:insetTop="0dp"
             android:insetBottom="0dp" />
@@ -93,10 +146,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="😂 Risa"
+            android:text="😂 Broma"
             android:textColor="#FFD700"
-            android:textSize="9sp"
-            android:backgroundTint="#1AFFD700"
+            android:textSize="8sp"
+            android:background="@drawable/fondo_boton_amarillo"
             android:padding="2dp"
             android:insetTop="0dp"
             android:insetBottom="0dp" />
@@ -108,8 +161,8 @@
             android:layout_weight="1"
             android:text="😏 Burla"
             android:textColor="#FF8800"
-            android:textSize="9sp"
-            android:backgroundTint="#1AFF8800"
+            android:textSize="8sp"
+            android:background="@drawable/fondo_boton_naranja"
             android:padding="2dp"
             android:insetTop="0dp"
             android:insetBottom="0dp" />
@@ -121,8 +174,8 @@
             android:layout_weight="1"
             android:text="📊 Analizar"
             android:textColor="#00E5FF"
-            android:textSize="9sp"
-            android:backgroundTint="#1A00E5FF"
+            android:textSize="8sp"
+            android:background="@drawable/fondo_boton_cyan"
             android:padding="2dp"
             android:insetTop="0dp"
             android:insetBottom="0dp" />
@@ -133,20 +186,51 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="60dp"
-        android:maxHeight="150dp"
+        android:maxHeight="120dp"
         android:text="Toca una opción o escribe para comenzar."
         android:textColor="#E0FFFFFF"
         android:textSize="11sp"
         android:padding="8dp"
-        android:background="#22000000"
+        android:background="@drawable/fondo_input_chat"
         android:scrollbars="vertical" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <EditText
+            android:id="@+id/et_pregunta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Pregunta rápida a Meteory..."
+            android:textColorHint="#88FFFFFF"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:background="@drawable/fondo_input_chat"
+            android:padding="8dp"
+            android:maxLines="2" />
+
+        <Button
+            android:id="@+id/btn_enviar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="➤"
+            android:textColor="#00FF88"
+            android:textSize="14sp"
+            android:background="@drawable/fondo_boton_verde"
+            android:minWidth="40dp"
+            android:layout_marginLeft="4dp" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="💡 Responde con voz en alto"
+        android:text="💡 Mueve esta bolita a cualquier esquina para no estorbar tu partida"
         android:textColor="#88FFFFFF"
-        android:textSize="9sp"
-        android:layout_marginTop="4dp"
-        android:layout_gravity="right" />
+        android:textSize="8sp"
+        android:layout_marginTop="6dp"
+        android:layout_gravity="center_horizontal" />
 </LinearLayout>
