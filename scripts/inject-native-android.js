@@ -61,28 +61,23 @@ public class ModoGamingPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void activarModoGaming(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(getContext())) {
-            call.reject("SIN_PERMISO");
-            return;
-        }
-
+    public void activarModoGaming(final PluginCall call) {
         String serverUrl = call.getString("serverUrl", "http://10.0.2.2:3000");
         getContext().getSharedPreferences("MeteoryPrefs", Context.MODE_PRIVATE)
             .edit()
             .putString("serverUrl", serverUrl)
             .apply();
 
-        llamadaGuardada = call;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            android.media.projection.MediaProjectionManager mpm = (android.media.projection.MediaProjectionManager) 
-                getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-            Intent captureIntent = mpm.createScreenCaptureIntent();
-            startActivityForResult(call, captureIntent, CODIGO_PANTALLA);
+        if (getActivity() != null && getActivity() instanceof MainActivity) {
+            final MainActivity act = (MainActivity) getActivity();
+            getActivity().runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    act.verificarPermisosYIniciarModoGaming(call);
+                }
+            });
         } else {
-            iniciarServicios(android.app.Activity.RESULT_CANCELED, null);
-            call.resolve();
+            call.reject("MainActivity no disponible");
         }
     }
 
@@ -93,36 +88,6 @@ public class ModoGamingPlugin extends Plugin {
         call.resolve();
     }
 
-    private void iniciarServicios(int resultCode, Intent data) {
-        Context ctx = getContext();
-        boolean isScanningActive = (resultCode == android.app.Activity.RESULT_OK && data != null);
-
-        // Start ServicioBolitaFlotante
-        Intent bolitaIntent = new Intent(ctx, ServicioBolitaFlotante.class);
-        bolitaIntent.putExtra("isScanningActive", isScanningActive);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ctx.startForegroundService(bolitaIntent);
-        } else {
-            ctx.startService(bolitaIntent);
-        }
-
-        // Start ServicioEscaneoPantalla if accepted
-        if (isScanningActive) {
-            Intent escaneoIntent = new Intent(ctx, ServicioEscaneoPantalla.class);
-            escaneoIntent.putExtra("resultCode", resultCode);
-            escaneoIntent.putExtra("data", data);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ctx.startForegroundService(escaneoIntent);
-            } else {
-                ctx.startService(escaneoIntent);
-            }
-        }
-
-        if (getActivity() != null) {
-            getActivity().moveTaskToBack(true);
-        }
-    }
-
     @Override
     protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
         super.handleOnActivityResult(requestCode, resultCode, data);
@@ -130,10 +95,6 @@ public class ModoGamingPlugin extends Plugin {
             boolean ok = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
             if (ok) llamadaGuardada.resolve();
             else llamadaGuardada.reject("PERMISO_DENEGADO");
-            llamadaGuardada = null;
-        } else if (requestCode == CODIGO_PANTALLA && llamadaGuardada != null) {
-            iniciarServicios(resultCode, data);
-            llamadaGuardada.resolve();
             llamadaGuardada = null;
         }
     }
@@ -998,6 +959,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 
 public class ServicioEscaneoPantalla extends Service {
+    public static MediaProjection tokenMediaProjection;
     private static final String CANAL = "CANAL_ESCANEO_METEORY";
     private MediaProjection mediaProjection;
     private VirtualDisplay virtualDisplay;
@@ -1053,12 +1015,18 @@ public class ServicioEscaneoPantalla extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
+        if (tokenMediaProjection != null) {
+            iniciarMediaProjectionConToken();
+        } else if (intent != null) {
             int resultCode = intent.getIntExtra("resultCode", 0);
             Intent data = intent.getParcelableExtra("data");
             if (resultCode != 0 && data != null) {
                 iniciarMediaProjection(resultCode, data);
+            } else {
+                stopSelf();
             }
+        } else {
+            stopSelf();
         }
         return START_NOT_STICKY;
     }
@@ -1084,6 +1052,33 @@ public class ServicioEscaneoPantalla extends Service {
             startForeground(8888, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
             startForeground(8888, notif);
+        }
+    }
+
+    private void iniciarMediaProjectionConToken() {
+        try {
+            mediaProjection = tokenMediaProjection;
+            if (mediaProjection != null) {
+                WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                DisplayMetrics metrics = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(metrics);
+                screenDensity = metrics.densityDpi;
+                
+                imageReader = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 2);
+                virtualDisplay = mediaProjection.createVirtualDisplay(
+                    "MeteoryEscaneo",
+                    captureWidth, captureHeight, screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader.getSurface(), null, null
+                );
+                
+                handler.postDelayed(captureRunnable, 5000);
+            } else {
+                stopSelf();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            stopSelf();
         }
     }
 
@@ -1232,15 +1227,116 @@ fs.writeFileSync(path.join(packageDir, 'ServicioEscaneoPantalla.java'), servicio
 // 7. MainActivity.java
 const mainActivityContent = `package com.meteory.ia;
 
+import android.content.Intent;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginCall;
 
 public class MainActivity extends BridgeActivity {
+
+    private MediaProjectionManager mProjectionManager;
+    private MediaProjection mMediaProjection;
+    private ActivityResultLauncher<Intent> lanzadorSuperposicion;
+    private ActivityResultLauncher<Intent> lanzadorCaptura;
+    private PluginCall mCall;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ModoGamingPlugin.class);
         registerPlugin(VozPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Registrar lanzador para permiso de superposición
+        lanzadorSuperposicion = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (Settings.canDrawOverlays(this)) {
+                        pedirPermisoCaptura();
+                    } else {
+                        if (mCall != null) {
+                            mCall.reject("SIN_PERMISO_SUPERPOSICION");
+                        }
+                        Toast.makeText(this, "Permiso de superposición denegado", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    pedirPermisoCaptura();
+                }
+            }
+        );
+
+        // Registrar lanzador para captura de pantalla (MediaProjection)
+        lanzadorCaptura = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                int resultCode = result.getResultCode();
+                Intent data = result.getData();
+                if (resultCode == android.app.Activity.RESULT_OK && data != null) {
+                    mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+                    mMediaProjection = mProjectionManager.getMediaProjection(resultCode, data);
+                    iniciarServiciosModoGaming();
+                    if (mCall != null) {
+                        mCall.resolve();
+                    }
+                    cerrarAppCompletamente();
+                } else {
+                    if (mCall != null) {
+                        mCall.reject("PERMISO_CAPTURA_DENEGADO");
+                    }
+                    Toast.makeText(this, "Necesitas permitir la captura de pantalla para escanear y recibir consejos en vivo", Toast.LENGTH_LONG).show();
+                }
+            }
+        );
+    }
+
+    public void verificarPermisosYIniciarModoGaming(PluginCall call) {
+        this.mCall = call;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            lanzadorSuperposicion.launch(intent);
+        } else {
+            pedirPermisoCaptura();
+        }
+    }
+
+    private void pedirPermisoCaptura() {
+        mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        if (mProjectionManager != null) {
+            lanzadorCaptura.launch(mProjectionManager.createScreenCaptureIntent());
+        }
+    }
+
+    private void iniciarServiciosModoGaming() {
+        Intent iBolita = new Intent(this, ServicioBolitaFlotante.class);
+        iBolita.putExtra("isScanningActive", true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(iBolita);
+        } else {
+            startService(iBolita);
+        }
+
+        Intent iEscaneo = new Intent(this, ServicioEscaneoPantalla.class);
+        ServicioEscaneoPantalla.tokenMediaProjection = mMediaProjection;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(iEscaneo);
+        } else {
+            startService(iEscaneo);
+        }
+    }
+
+    private void cerrarAppCompletamente() {
+        moveTaskToBack(true);
+        finishAffinity();
+        finishAndRemoveTask();
     }
 }
 `;
@@ -1500,7 +1596,9 @@ if (fs.existsSync(manifestPath)) {
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
         </service>
         <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection|specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
+        </service>
         <!-- METEORY SERVICES END -->`;
 
   // Remove existing services definition using the clean comments-based delimiters
