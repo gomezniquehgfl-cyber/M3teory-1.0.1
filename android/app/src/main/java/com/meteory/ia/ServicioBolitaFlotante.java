@@ -31,6 +31,9 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import java.util.HashMap;
 import java.util.Locale;
 
@@ -40,8 +43,18 @@ public class ServicioBolitaFlotante extends Service {
     private View bolita;
     private View panelChat;
     private TextView tvFps;
+    private View viewEstadoEscaneo;
     private EditText etPregunta;
     private TextView tvRespuesta;
+    
+    // HUD panel views
+    private TextView tvRendimiento;
+    private TextView tvFpsPanel;
+    private TextView tvGama;
+    private Button btnEco;
+    private TextView tvJuegoDetectado;
+    private Spinner spinnerJuego;
+    
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams chatParams;
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -57,6 +70,9 @@ public class ServicioBolitaFlotante extends Service {
     private Vibrator vibrator;
     private boolean isChatOpen = false;
     private boolean isScanningActive = true;
+    private boolean isEcoMode = false;
+    private long lastSpeakTime = 0;
+    private String manualGameSelect = "Auto-Detectar";
 
     private View burbuja;
     private WindowManager.LayoutParams burbujaParams;
@@ -73,8 +89,53 @@ public class ServicioBolitaFlotante extends Service {
                     }
                 } else if ("METEORY_MOSTRAR_BURBUJA".equals(intent.getAction())) {
                     String texto = intent.getStringExtra("texto");
+                    boolean autoSpeak = intent.getBooleanExtra("autoSpeak", false);
                     if (texto != null && !texto.isEmpty()) {
-                        mostrarBurbujaFlotante(texto);
+                        long now = System.currentTimeMillis();
+                        // Enforce 20-second interval only on spontaneous comments, not direct button clicks
+                        if (!autoSpeak || (now - lastSpeakTime >= 20000)) {
+                            if (autoSpeak) {
+                                lastSpeakTime = now;
+                            }
+                            mostrarBurbujaFlotante(texto);
+                        }
+                    }
+                } else if ("METEORY_RESULTADO_VISION".equals(intent.getAction())) {
+                    String jsonStr = intent.getStringExtra("json");
+                    if (jsonStr != null && !jsonStr.isEmpty()) {
+                        try {
+                            org.json.JSONObject data = new org.json.JSONObject(jsonStr);
+                            String app = data.optString("app_o_juego", "desconocido");
+                            String queHace = data.optString("que_hace", "");
+                            String bienMal = data.optString("bien_mal_normal", "NORMAL");
+                            String comentario = data.optString("comentario_meteory", "");
+                            boolean hablar = data.optBoolean("deberia_hablar", false);
+
+                            // Update detected App text in our HUD panel
+                            if (tvJuegoDetectado != null) {
+                                String juegoActual = "Auto-Detectar".equals(manualGameSelect) ? app : manualGameSelect;
+                                String conEmoji = obtenerEmojiJuego(juegoActual) + juegoActual;
+                                if (!"Auto-Detectar".equals(manualGameSelect)) {
+                                    conEmoji += " (Manual)";
+                                }
+                                tvJuegoDetectado.setText(conEmoji);
+                            }
+
+                            // Update performance text
+                            if (tvRendimiento != null) {
+                                tvRendimiento.setText("Rendimiento: " + bienMal);
+                            }
+
+                            // Trigger spontaneous speech bubbles
+                            if (hablar && !comentario.isEmpty()) {
+                                Intent bubbleIntent = new Intent("METEORY_MOSTRAR_BURBUJA");
+                                bubbleIntent.putExtra("texto", comentario);
+                                bubbleIntent.putExtra("autoSpeak", true);
+                                sendBroadcast(bubbleIntent);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -108,6 +169,7 @@ public class ServicioBolitaFlotante extends Service {
         IntentFilter filter = new IntentFilter();
         filter.addAction("METEORY_RESPUESTA_GEMINI");
         filter.addAction("METEORY_MOSTRAR_BURBUJA");
+        filter.addAction("METEORY_RESULTADO_VISION");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receptorRespuesta, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -184,6 +246,7 @@ public class ServicioBolitaFlotante extends Service {
         if (layoutResId != 0) {
             bolita = LayoutInflater.from(this).inflate(layoutResId, null);
             tvFps = bolita.findViewById(getResources().getIdentifier("tv_fps", "id", getPackageName()));
+            viewEstadoEscaneo = bolita.findViewById(getResources().getIdentifier("view_estado_escaneo", "id", getPackageName()));
         }
         if (tvFps == null) {
             tvFps = new TextView(this);
@@ -202,9 +265,10 @@ public class ServicioBolitaFlotante extends Service {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
 
+        int sizePx = (int) (72 * getResources().getDisplayMetrics().density);
         params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                sizePx,
+                sizePx,
                 tipo,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
@@ -242,9 +306,11 @@ public class ServicioBolitaFlotante extends Service {
                     }
                 }
                 
-                if (tvFps != null) {
-                    String scanIcon = isScanningActive ? " 🟢" : " 🔴";
-                    tvFps.setText("FPS" + scanIcon);
+                if (viewEstadoEscaneo != null) {
+                    int drawId = getResources().getIdentifier(isScanningActive ? "fondo_estado_activo" : "fondo_estado_pausado", "drawable", getPackageName());
+                    if (drawId != 0) {
+                        viewEstadoEscaneo.setBackgroundResource(drawId);
+                    }
                 }
                 
                 Intent scanStateIntent = new Intent("METEORY_SET_SCANNING_ACTIVE");
@@ -305,6 +371,14 @@ public class ServicioBolitaFlotante extends Service {
             Button btnBurla = panelChat.findViewById(getResources().getIdentifier("btn_burla", "id", getPackageName()));
             Button btnAnalizar = panelChat.findViewById(getResources().getIdentifier("btn_analizar", "id", getPackageName()));
 
+            // Find new HUD elements
+            tvRendimiento = panelChat.findViewById(getResources().getIdentifier("tv_rendimiento", "id", getPackageName()));
+            tvFpsPanel = panelChat.findViewById(getResources().getIdentifier("tv_fps_panel", "id", getPackageName()));
+            tvGama = panelChat.findViewById(getResources().getIdentifier("tv_gama", "id", getPackageName()));
+            btnEco = panelChat.findViewById(getResources().getIdentifier("btn_eco", "id", getPackageName()));
+            tvJuegoDetectado = panelChat.findViewById(getResources().getIdentifier("tv_juego_detectado", "id", getPackageName()));
+            spinnerJuego = panelChat.findViewById(getResources().getIdentifier("spinner_juego", "id", getPackageName()));
+
             if (tvRespuesta != null) tvRespuesta.setMovementMethod(new ScrollingMovementMethod());
 
             if (btnCerrar != null) {
@@ -354,6 +428,53 @@ public class ServicioBolitaFlotante extends Service {
                         tvRespuesta.setText("⏳ Analizando tu pantalla en vivo...");
                         Intent intent = new Intent("METEORY_FORZAR_ESCANEO");
                         sendBroadcast(intent);
+                    }
+                });
+            }
+
+            // Spinner setup for manual game overrides
+            if (spinnerJuego != null) {
+                final String[] juegos = {"Auto-Detectar", "Free Fire", "Minecraft", "Roblox", "Call of Duty", "PUBG", "Brawl Stars", "Clash Royale", "TikTok", "Escritorio"};
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, juegos);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spinnerJuego.setAdapter(adapter);
+                spinnerJuego.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        manualGameSelect = juegos[position];
+                        if (tvJuegoDetectado != null) {
+                            if ("Auto-Detectar".equals(manualGameSelect)) {
+                                tvJuegoDetectado.setText("Buscando...");
+                            } else {
+                                tvJuegoDetectado.setText(manualGameSelect + " (Manual)");
+                            }
+                        }
+                        if (position > 0) {
+                            hablarTexto("Cargando perfil táctico para " + manualGameSelect);
+                        }
+                    }
+                    @Override public void onNothingSelected(AdapterView<?> parent) {}
+                });
+            }
+
+            // ECO Mode button handler
+            if (btnEco != null) {
+                btnEco.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        isEcoMode = !isEcoMode;
+                        if (isEcoMode) {
+                            btnEco.setText("ECO: ON");
+                            btnEco.setBackgroundColor(Color.parseColor("#00FF88"));
+                            hablarTexto("Ahorro estelar encendido.");
+                        } else {
+                            btnEco.setText("ECO: OFF");
+                            btnEco.setBackgroundColor(Color.parseColor("#FF4444"));
+                            hablarTexto("Modo rendimiento absoluto.");
+                        }
+                        Intent ecoIntent = new Intent("METEORY_CAMBIAR_INTERVALO");
+                        ecoIntent.putExtra("intervalo", isEcoMode ? 10000 : 5000);
+                        sendBroadcast(ecoIntent);
                     }
                 });
             }
@@ -530,6 +651,22 @@ public class ServicioBolitaFlotante extends Service {
         }
     }
 
+    private String obtenerEmojiJuego(String juego) {
+        if (juego == null) return "🎮 ";
+        String j = juego.toLowerCase(Locale.ROOT);
+        if (j.contains("free fire")) return "🔥 ";
+        if (j.contains("minecraft")) return "⛏️ ";
+        if (j.contains("roblox")) return "🧱 ";
+        if (j.contains("call of duty") || j.contains("cod")) return "🔫 ";
+        if (j.contains("pubg")) return "🪂 ";
+        if (j.contains("brawl stars")) return "🌟 ";
+        if (j.contains("clash royale")) return "👑 ";
+        if (j.contains("tiktok") || j.contains("youtube")) return "📹 ";
+        if (j.contains("escritorio") || j.contains("desktop") || j.contains("inicio")) return "📱 ";
+        if (j.contains("desconocido")) return "❓ ";
+        return "🎮 ";
+    }
+
     private void iniciarMedidorFPS() {
         frameCallback = new Choreographer.FrameCallback() {
             @Override
@@ -544,12 +681,19 @@ public class ServicioBolitaFlotante extends Service {
                         ui.post(new Runnable() {
                             @Override public void run() {
                                 if (tvFps != null) {
-                                    String scanIcon = isScanningActive ? " 🟢" : " 🔴";
-                                    tvFps.setText(realFps + " FPS" + scanIcon);
+                                    tvFps.setText(String.valueOf(realFps));
                                     int color = realFps >= 55 ? Color.parseColor("#00FF88") :
                                                 realFps >= 35 ? Color.parseColor("#FFD700") :
                                                 Color.parseColor("#FF4444");
                                     tvFps.setTextColor(color);
+                                }
+                                // Sync FPS display in the opened panel as well
+                                if (tvFpsPanel != null) {
+                                    tvFpsPanel.setText(realFps + " FPS");
+                                    int color = realFps >= 55 ? Color.parseColor("#00FF88") :
+                                                realFps >= 35 ? Color.parseColor("#FFD700") :
+                                                Color.parseColor("#FF4444");
+                                    tvFpsPanel.setTextColor(color);
                                 }
                             }
                         });

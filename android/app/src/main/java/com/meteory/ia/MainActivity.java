@@ -85,10 +85,18 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void pedirPermisoCaptura() {
-        mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-        if (mProjectionManager != null) {
-            lanzadorCaptura.launch(mProjectionManager.createScreenCaptureIntent());
-        }
+        // Detener servicios de superposición temporalmente para evitar que Android ponga en gris el botón "Iniciar ahora"
+        try {
+            stopService(new Intent(this, ServicioBolitaFlotante.class));
+            stopService(new Intent(this, ServicioEscaneoPantalla.class));
+        } catch (Exception e) {}
+
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            mProjectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+            if (mProjectionManager != null) {
+                lanzadorCaptura.launch(mProjectionManager.createScreenCaptureIntent());
+            }
+        }, 200);
     }
 
     private void iniciarServiciosModoGaming() {
