@@ -58,13 +58,24 @@ public class ServicioBolitaFlotante extends Service {
     private boolean isChatOpen = false;
     private boolean isScanningActive = true;
 
+    private View burbuja;
+    private WindowManager.LayoutParams burbujaParams;
+    private boolean isBurbujaVisible = false;
+
     private BroadcastReceiver receptorRespuesta = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent != null && "METEORY_RESPUESTA_GEMINI".equals(intent.getAction())) {
-                String resp = intent.getStringExtra("respuesta");
-                if (resp != null && !resp.isEmpty()) {
-                    mostrarRespuesta(resp);
+            if (intent != null) {
+                if ("METEORY_RESPUESTA_GEMINI".equals(intent.getAction())) {
+                    String resp = intent.getStringExtra("respuesta");
+                    if (resp != null && !resp.isEmpty()) {
+                        mostrarRespuesta(resp);
+                    }
+                } else if ("METEORY_MOSTRAR_BURBUJA".equals(intent.getAction())) {
+                    String texto = intent.getStringExtra("texto");
+                    if (texto != null && !texto.isEmpty()) {
+                        mostrarBurbujaFlotante(texto);
+                    }
                 }
             }
         }
@@ -72,6 +83,14 @@ public class ServicioBolitaFlotante extends Service {
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null) {
+            isScanningActive = intent.getBooleanExtra("isScanningActive", true);
+        }
+        return START_STICKY;
+    }
 
     @Override
     public void onCreate() {
@@ -86,10 +105,13 @@ public class ServicioBolitaFlotante extends Service {
         crearPanelChat();
         iniciarMedidorFPS();
 
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("METEORY_RESPUESTA_GEMINI");
+        filter.addAction("METEORY_MOSTRAR_BURBUJA");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receptorRespuesta, new IntentFilter("METEORY_RESPUESTA_GEMINI"), Context.RECEIVER_NOT_EXPORTED);
+            registerReceiver(receptorRespuesta, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            registerReceiver(receptorRespuesta, new IntentFilter("METEORY_RESPUESTA_GEMINI"));
+            registerReceiver(receptorRespuesta, filter);
         }
     }
 
@@ -107,8 +129,8 @@ public class ServicioBolitaFlotante extends Service {
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
                     }
-                    tts.setPitch(1.05f);
-                    tts.setSpeechRate(1.0f);
+                    tts.setPitch(0.92f); // Male pitch
+                    tts.setSpeechRate(0.98f); // Humans rate
                 }
             }
         });
@@ -123,14 +145,15 @@ public class ServicioBolitaFlotante extends Service {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()).build();
             am.requestAudioFocus(foco);
         }
+        String cleanText = texto.replaceAll("\\*+", "").replaceAll("#+", "").replaceAll("\\u0060+", "").trim();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             Bundle b = new Bundle();
             b.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC);
-            tts.speak(texto, TextToSpeech.QUEUE_FLUSH, b, "METEORY_BOLITA");
+            tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, b, "METEORY_BOLITA");
         } else {
             HashMap<String, String> p = new HashMap<>();
             p.put(TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_MUSIC));
-            tts.speak(texto, TextToSpeech.QUEUE_FLUSH, p);
+            tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, p);
         }
     }
 
@@ -164,7 +187,7 @@ public class ServicioBolitaFlotante extends Service {
             tvFps.setPadding(24, 14, 24, 14);
             int resId = getResources().getIdentifier("fondo_bolita", "drawable", getPackageName());
             if (resId != 0) tvFps.setBackgroundResource(resId);
-            else tvFps.setBackgroundColor(Color.parseColor("#E6000000"));
+            else tvFps.setBackgroundColor(Color.parseColor("#E60A0E1A"));
         }
 
         int tipo = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
@@ -194,14 +217,32 @@ public class ServicioBolitaFlotante extends Service {
             @Override
             public boolean onDoubleTap(MotionEvent e) {
                 if (tts != null) tts.stop();
-                if (vibrator != null) vibrator.vibrate(20);
+                if (vibrator != null) {
+                    vibrator.vibrate(20);
+                }
                 return true;
             }
 
             @Override
             public void onLongPress(MotionEvent e) {
                 isScanningActive = !isScanningActive;
-                if (vibrator != null) vibrator.vibrate(40);
+                if (vibrator != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(30, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        vibrator.vibrate(30);
+                    }
+                }
+                
+                if (tvFps != null) {
+                    String scanIcon = isScanningActive ? " 🟢" : " 🔴";
+                    tvFps.setText("FPS" + scanIcon);
+                }
+                
+                Intent scanStateIntent = new Intent("METEORY_SET_SCANNING_ACTIVE");
+                scanStateIntent.putExtra("active", isScanningActive);
+                sendBroadcast(scanStateIntent);
+                
                 String msg = isScanningActive ? "🟢 Escaneo activado" : "🔴 Escaneo pausado";
                 hablarTexto(msg);
             }
@@ -268,7 +309,7 @@ public class ServicioBolitaFlotante extends Service {
                 btnEnviar.setOnClickListener(new View.OnClickListener() {
                     @Override public void onClick(View v) {
                         String txt = etPregunta != null ? etPregunta.getText().toString().trim() : "";
-                        if (txt.isEmpty()) txt = "Dame un consejo para ganar";
+                        if (txt.isEmpty()) txt = "Dame un consejo estelar para ganar.";
                         procesarConsulta(txt);
                         if (etPregunta != null) etPregunta.setText("");
                     }
@@ -278,8 +319,7 @@ public class ServicioBolitaFlotante extends Service {
             if (btnConsejo != null) {
                 btnConsejo.setOnClickListener(new View.OnClickListener() {
                     @Override public void onClick(View v) {
-                        String frase = BaseConocimientoJuegos.obtenerFrase("FREE_FIRE", "REC");
-                        mostrarRespuesta("✨ Consejo: " + frase);
+                        procesarConsulta("Dame un consejo táctico espacial.");
                     }
                 });
             }
@@ -287,8 +327,7 @@ public class ServicioBolitaFlotante extends Service {
             if (btnRisa != null) {
                 btnRisa.setOnClickListener(new View.OnClickListener() {
                     @Override public void onClick(View v) {
-                        String frase = BaseConocimientoJuegos.obtenerFrase("FREE_FIRE", "RISA");
-                        mostrarRespuesta("😂 " + frase);
+                        procesarConsulta("Dime un chiste o broma espacial graciosa.");
                     }
                 });
             }
@@ -296,8 +335,7 @@ public class ServicioBolitaFlotante extends Service {
             if (btnBurla != null) {
                 btnBurla.setOnClickListener(new View.OnClickListener() {
                     @Override public void onClick(View v) {
-                        String frase = BaseConocimientoJuegos.obtenerFrase("FREE_FIRE", "BURLA");
-                        mostrarRespuesta("😏 " + frase);
+                        procesarConsulta("Hazme una burla amigable e inteligente sobre mi juego.");
                     }
                 });
             }
@@ -305,7 +343,9 @@ public class ServicioBolitaFlotante extends Service {
             if (btnAnalizar != null) {
                 btnAnalizar.setOnClickListener(new View.OnClickListener() {
                     @Override public void onClick(View v) {
-                        procesarConsulta("Analiza lo que ves en mi pantalla ahora mismo y dame un resumen muy corto");
+                        tvRespuesta.setText("⏳ Analizando tu pantalla en vivo...");
+                        Intent intent = new Intent("METEORY_FORZAR_ESCANEO");
+                        sendBroadcast(intent);
                     }
                 });
             }
@@ -352,20 +392,61 @@ public class ServicioBolitaFlotante extends Service {
         }
     }
 
-    private void procesarConsulta(String prompt) {
-        if (tvRespuesta != null) tvRespuesta.setText("⏳ Meteory IA procesando...");
-        Intent i = new Intent("METEORY_ENVIAR_GEMINI");
-        i.putExtra("prompt", prompt);
-        sendBroadcast(i);
-
-        ui.postDelayed(new Runnable() {
-            @Override public void run() {
-                if (tvRespuesta != null && tvRespuesta.getText().toString().startsWith("⏳")) {
-                    String fallback = BaseConocimientoJuegos.obtenerFrase("FREE_FIRE", "REC");
-                    mostrarRespuesta("✨ Meteory: " + fallback);
+    private void enviarPreguntaBackend(final String prompt) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String serverUrl = getSharedPreferences("MeteoryPrefs", MODE_PRIVATE)
+                        .getString("serverUrl", "");
+                    if (serverUrl == null || serverUrl.isEmpty()) return;
+                    
+                    String apiEndPoint = serverUrl + "/api/chat";
+                    java.net.URL url = new java.net.URL(apiEndPoint);
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    
+                    String escapedPrompt = prompt.replace(""", "\"");
+                    String jsonPayload = "{"message":"" + escapedPrompt + ""}";
+                    
+                    java.io.OutputStream os = conn.getOutputStream();
+                    os.write(jsonPayload.getBytes("UTF-8"));
+                    os.close();
+                    
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == 200) {
+                        java.io.InputStream is = conn.getInputStream();
+                        java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            sb.append(line);
+                        }
+                        reader.close();
+                        
+                        org.json.JSONObject jsonObj = new org.json.JSONObject(sb.toString());
+                        final String responseText = jsonObj.optString("text", "");
+                        
+                        ui.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mostrarRespuesta(responseText);
+                            }
+                        });
+                    }
+                    conn.disconnect();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
-        }, 1200);
+        }).start();
+    }
+
+    private void procesarConsulta(String prompt) {
+        if (tvRespuesta != null) tvRespuesta.setText("⏳ Meteory IA procesando...");
+        enviarPreguntaBackend(prompt);
     }
 
     private void mostrarRespuesta(String texto) {
@@ -373,6 +454,72 @@ public class ServicioBolitaFlotante extends Service {
             tvRespuesta.setText(texto);
         }
         hablarTexto(texto);
+    }
+
+    private void mostrarBurbujaFlotante(final String texto) {
+        if (wm == null) return;
+        
+        ocultarBurbujaFlotante();
+        
+        int bubbleLayoutId = getResources().getIdentifier("vista_burbuja_respuesta", "layout", getPackageName());
+        if (bubbleLayoutId == 0) return;
+        
+        burbuja = LayoutInflater.from(this).inflate(bubbleLayoutId, null);
+        TextView tvBurbuja = burbuja.findViewById(getResources().getIdentifier("tv_burbuja_texto", "id", getPackageName()));
+        if (tvBurbuja != null) {
+            tvBurbuja.setText(texto);
+        }
+        
+        int tipo = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                WindowManager.LayoutParams.TYPE_PHONE;
+                
+        burbujaParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                tipo,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+        );
+        burbujaParams.gravity = Gravity.TOP | Gravity.START;
+        
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        if (params.x < screenWidth / 2) {
+            burbujaParams.x = params.x + (bolita != null ? bolita.getWidth() : 100) + 15;
+        } else {
+            burbujaParams.x = params.x - 520;
+            if (burbujaParams.x < 15) burbujaParams.x = 15;
+        }
+        burbujaParams.y = params.y;
+        
+        try {
+            wm.addView(burbuja, burbujaParams);
+            isBurbujaVisible = true;
+            
+            // Speak bubble out loud as well
+            hablarTexto(texto);
+            
+            ui.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    ocultarBurbujaFlotante();
+                }
+            }, 4000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void ocultarBurbujaFlotante() {
+        if (isBurbujaVisible && wm != null && burbuja != null) {
+            try {
+                wm.removeView(burbuja);
+            } catch (Exception e) {}
+            isBurbujaVisible = false;
+            burbuja = null;
+        }
     }
 
     private void iniciarMedidorFPS() {
@@ -417,6 +564,7 @@ public class ServicioBolitaFlotante extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        ocultarBurbujaFlotante();
         try { unregisterReceiver(receptorRespuesta); } catch (Exception e) {}
         if (frameCallback != null) {
             try { Choreographer.getInstance().removeFrameCallback(frameCallback); } catch (Exception e) {}

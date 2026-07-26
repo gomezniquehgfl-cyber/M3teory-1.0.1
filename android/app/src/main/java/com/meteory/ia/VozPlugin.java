@@ -40,8 +40,8 @@ public class VozPlugin extends Plugin {
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
                     }
-                    tts.setPitch(1.05f);
-                    tts.setSpeechRate(1.0f);
+                    tts.setPitch(0.92f); // Male pitch
+                    tts.setSpeechRate(0.98f); // Humans rate
                 }
             }
         });
@@ -68,14 +68,15 @@ public class VozPlugin extends Plugin {
             am.requestAudioFocus(foco);
         }
 
+        String cleanText = texto.replaceAll("\\*+", "").replaceAll("#+", "").replaceAll("\\u0060+", "").trim();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             Bundle b = new Bundle();
             b.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC);
-            tts.speak(texto, TextToSpeech.QUEUE_FLUSH, b, "METEORY");
+            tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, b, "METEORY");
         } else {
             HashMap<String, String> p = new HashMap<>();
             p.put(TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_MUSIC));
-            tts.speak(texto, TextToSpeech.QUEUE_FLUSH, p);
+            tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, p);
         }
         call.resolve();
     }

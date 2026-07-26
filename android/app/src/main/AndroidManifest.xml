@@ -57,5 +57,37 @@
         <service android:name="com.meteory.ia.ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service android:name="com.meteory.ia.ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="specialUse" />
 
+    
+        
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
+    
+        
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
+    
+        
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
+    
+        
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
+    
+        
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
+    
+        <service android:name=".ServicioBolitaFlotante" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay_fps_monitor" />
+        </service>
+        <service android:name=".ServicioAudioVoz" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ServicioEscaneoPantalla" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  
     </application>
 </manifest>

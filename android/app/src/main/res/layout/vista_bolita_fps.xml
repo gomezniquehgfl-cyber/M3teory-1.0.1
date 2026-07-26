@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/tv_fps"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:paddingHorizontal="12dp"
-    android:paddingVertical="7dp"
+    android:layout_width="72dp"
+    android:layout_height="72dp"
+    android:gravity="center"
     android:background="@drawable/fondo_bolita"
     android:text="60 FPS"
     android:textColor="#00FF88"
-    android:textSize="13sp"
+    android:textSize="12sp"
     android:textStyle="bold"
     android:elevation="12dp"
     android:fontFamily="monospace" />

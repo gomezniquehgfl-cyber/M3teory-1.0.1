@@ -96,6 +96,16 @@ export default function App() {
   const [customAppText, setCustomAppText] = useState<string>("");
   const [floatingBallQuery, setFloatingBallQuery] = useState<string>("");
 
+  // --- STATE FOR GAME SCREEN SIMULATOR ---
+  const [simulatorScenario, setSimulatorScenario] = useState<"freefire" | "cod" | "minecraft" | "pubg" | "upload">("freefire");
+  const [simulatorHp, setSimulatorHp] = useState<number>(80);
+  const [simulatorAmmo, setSimulatorAmmo] = useState<"full" | "low" | "empty">("full");
+  const [simulatorThreat, setSimulatorThreat] = useState<"none" | "medium" | "high">("none");
+  const [simulatorUploadedImage, setSimulatorUploadedImage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanResultText, setScanResultText] = useState<string>("");
+  const [scanLatency, setScanLatency] = useState<number>(0);
+
   // --- LOW/MID END PHONE OPTIMIZATION (GAMA BAJA & MEDIA 60 FPS) ---
   const [isEcoMode, setIsEcoMode] = useState<boolean>(false);
   const isEcoModeRef = useRef<boolean>(false);
@@ -568,7 +578,7 @@ export default function App() {
           if (!res?.activo) {
             MG.solicitarPermiso().catch(() => {});
           } else {
-            MG.activarModoGaming().catch(() => {});
+            MG.activarModoGaming({ serverUrl: window.location.origin }).catch(() => {});
           }
         }).catch(() => {
           if (MG.solicitarPermiso) MG.solicitarPermiso().catch(() => {});
@@ -679,6 +689,409 @@ export default function App() {
       window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [isDraggingBall, dragOffset, ballPosition]);
+
+  // --- HANDLERS FOR GAME SCREEN SIMULATOR ---
+  const simCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Function to draw game mockup in canvas
+  const drawMockGame = useCallback(() => {
+    const canvas = simCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear background
+    ctx.clearRect(0, 0, width, height);
+
+    if (simulatorScenario === "upload" && simulatorUploadedImage) {
+      // Draw uploaded image
+      const img = new Image();
+      img.src = simulatorUploadedImage;
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+        drawHudOverlay(ctx, width, height);
+      };
+      return;
+    }
+
+    // Otherwise, draw dynamic generated vectors
+    let bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    if (simulatorScenario === "freefire") {
+      // Warm desert theme
+      bgGrad.addColorStop(0, "#c2410c"); // dark orange
+      bgGrad.addColorStop(0.5, "#7c2d12"); // dark red-brown
+      bgGrad.addColorStop(1, "#1e0b04");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw desert canyon mountains
+      ctx.fillStyle = "#451a03";
+      ctx.beginPath();
+      ctx.moveTo(0, height * 0.7);
+      ctx.lineTo(width * 0.3, height * 0.55);
+      ctx.lineTo(width * 0.6, height * 0.75);
+      ctx.lineTo(width * 0.8, height * 0.62);
+      ctx.lineTo(width, height * 0.8);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Desert ruins / cactus
+      ctx.fillStyle = "#854d0e";
+      ctx.fillRect(width * 0.2, height * 0.65, 10, 25); // cactus trunk
+      ctx.fillRect(width * 0.17, height * 0.7, 16, 5);
+
+      // Enemy target figure
+      if (simulatorThreat !== "none") {
+        ctx.strokeStyle = simulatorThreat === "high" ? "#ef4444" : "#f59e0b";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(width * 0.5 - 12, height * 0.52 - 12, 24, 24);
+        ctx.fillStyle = simulatorThreat === "high" ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)";
+        ctx.fillRect(width * 0.5 - 12, height * 0.52 - 12, 24, 24);
+        // Draw red dot
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.arc(width * 0.5, height * 0.52, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 8px monospace";
+        ctx.fillText(simulatorThreat === "high" ? "M1014 ENEMIGO" : "RIVAL DISTANTE", width * 0.5 - 28, height * 0.44);
+      }
+
+      // Title HUD
+      ctx.fillStyle = "#f97316";
+      ctx.font = "bold 9px monospace";
+      ctx.fillText("🔥 METEORY BATTLEGROUND (FREE FIRE)", 10, 20);
+
+    } else if (simulatorScenario === "cod") {
+      // Tactical night city theme
+      bgGrad.addColorStop(0, "#020617");
+      bgGrad.addColorStop(0.6, "#0f172a");
+      bgGrad.addColorStop(1, "#1e1b4b");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Night skyline
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(30, height * 0.5, 35, height * 0.5);
+      ctx.fillRect(80, height * 0.4, 45, height * 0.5);
+      ctx.fillRect(160, height * 0.55, 50, height * 0.5);
+      
+      // Neon windows in city
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillRect(40, height * 0.55, 4, 4);
+      ctx.fillRect(40, height * 0.65, 4, 4);
+      ctx.fillRect(95, height * 0.45, 4, 4);
+      ctx.fillRect(105, height * 0.55, 4, 4);
+
+      // Sniper in tower threat
+      if (simulatorThreat !== "none") {
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.arc(width * 0.75, height * 0.42, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Laser aim pointer from sniper to bottom left
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(width * 0.75, height * 0.42);
+        ctx.lineTo(width * 0.25, height * 0.78);
+        ctx.stroke();
+
+        ctx.fillStyle = "#ef4444";
+        ctx.font = "bold 8px monospace";
+        ctx.fillText("⚠️ FRANCOTIRADOR!", width * 0.55, height * 0.38);
+      }
+
+      // COD Title
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "bold 9px monospace";
+      ctx.fillText("🎖️ METEORY STRIKE (COD MOBILE)", 10, 20);
+
+    } else if (simulatorScenario === "minecraft") {
+      // Sandbox pixel green theme
+      bgGrad.addColorStop(0, "#0c4a6e"); // sky
+      bgGrad.addColorStop(0.6, "#0284c7");
+      bgGrad.addColorStop(1, "#38bdf8");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Pixel Sun
+      ctx.fillStyle = "#fef08a";
+      ctx.fillRect(width * 0.7, 30, 25, 25);
+
+      // Pixel landscape hills
+      ctx.fillStyle = "#15803d"; // dark grass
+      ctx.fillRect(0, height * 0.65, width, height * 0.35);
+      ctx.fillStyle = "#16a34a"; // mid grass
+      ctx.fillRect(0, height * 0.65, 80, 15);
+      ctx.fillRect(140, height * 0.65, 90, 25);
+
+      // Pixel creeper threat
+      if (simulatorThreat !== "none") {
+        ctx.fillStyle = "#22c55e"; // creeper green
+        ctx.fillRect(width * 0.5 - 10, height * 0.65 - 28, 16, 28);
+        // Creeper face
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(width * 0.5 - 8, height * 0.65 - 24, 4, 4); // eye
+        ctx.fillRect(width * 0.5, height * 0.65 - 24, 4, 4); // eye
+        ctx.fillRect(width * 0.5 - 5, height * 0.65 - 18, 6, 8); // mouth
+
+        ctx.fillStyle = "#ef4444";
+        ctx.font = "bold 8px monospace";
+        ctx.fillText("⚠️ SSSS... CREEPER!", width * 0.4 - 15, height * 0.65 - 34);
+      }
+
+      // Title
+      ctx.fillStyle = "#4ade80";
+      ctx.font = "bold 9px monospace";
+      ctx.fillText("🧱 CRAFT CRAZE (ROBLOX / MC)", 10, 20);
+
+    } else if (simulatorScenario === "pubg") {
+      // PUBG green forest battleground
+      bgGrad.addColorStop(0, "#1e3a8a"); // sky
+      bgGrad.addColorStop(0.5, "#475569");
+      bgGrad.addColorStop(1, "#14532d");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Grassy landscape
+      ctx.fillStyle = "#14532d";
+      ctx.beginPath();
+      ctx.moveTo(0, height * 0.6);
+      ctx.quadraticCurveTo(width * 0.4, height * 0.5, width * 0.8, height * 0.65);
+      ctx.lineTo(width, height * 0.55);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Drop crate landing with smoke
+      if (simulatorThreat !== "none") {
+        // Red smoke
+        ctx.fillStyle = "rgba(239, 68, 68, 0.4)";
+        ctx.beginPath();
+        ctx.arc(width * 0.6, height * 0.52 - 15, 12, 0, Math.PI * 2);
+        ctx.arc(width * 0.62, height * 0.52 - 25, 16, 0, Math.PI * 2);
+        ctx.arc(width * 0.58, height * 0.52 - 35, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Box
+        ctx.fillStyle = "#ef4444"; // red bottom
+        ctx.fillRect(width * 0.55, height * 0.52, 24, 18);
+        ctx.fillStyle = "#1e40af"; // blue tarp top
+        ctx.fillRect(width * 0.55 - 2, height * 0.52 - 3, 28, 5);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 8px monospace";
+        ctx.fillText("🎁 AIRDROP CAJA", width * 0.55 - 20, height * 0.52 - 44);
+      }
+
+      // Title
+      ctx.fillStyle = "#eab308";
+      ctx.font = "bold 9px monospace";
+      ctx.fillText("🪂 SURVIVAL ISLAND (PUBG MOBILE)", 10, 20);
+    }
+
+    // Common HUD overlays (radar, crosshair, health, bullets)
+    drawHudOverlay(ctx, width, height);
+  }, [simulatorScenario, simulatorHp, simulatorAmmo, simulatorThreat, simulatorUploadedImage]);
+
+  // Helper to draw HUD elements
+  const drawHudOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // 1. Red blood vignetting if health is critical (< 30)
+    if (simulatorHp < 30) {
+      const gradient = ctx.createRadialGradient(width/2, height/2, width/4, width/2, height/2, width/2);
+      gradient.addColorStop(0, "rgba(239, 68, 68, 0)");
+      gradient.addColorStop(0.8, "rgba(239, 68, 68, 0.25)");
+      gradient.addColorStop(1, "rgba(239, 68, 68, 0.7)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // Warning text blinking
+      if (Math.floor(Date.now() / 500) % 2 === 0) {
+        ctx.fillStyle = "#f43f5e";
+        ctx.font = "bold 10px monospace";
+        ctx.fillText("⚠️ ALERTA DE VIDA BAJA!", width * 0.3, height * 0.13);
+      }
+    }
+
+    // 2. Crosshair in middle
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - 12, height / 2);
+    ctx.lineTo(width / 2 + 12, height / 2);
+    ctx.moveTo(width / 2, height / 2 - 12);
+    ctx.lineTo(width / 2, height / 2 + 12);
+    ctx.stroke();
+
+    // Small center dot
+    ctx.fillStyle = simulatorHp < 30 ? "#f43f5e" : "#00ff88";
+    ctx.beginPath();
+    ctx.arc(width/2, height/2, 1.8, 0, Math.PI*2);
+    ctx.fill();
+
+    // 3. Health bar bottom left
+    const barWidth = 100;
+    const barHeight = 8;
+    const barX = 15;
+    const barY = height - 20;
+
+    // Draw health bar frame
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // Draw active health
+    const hpPercentage = simulatorHp / 100;
+    ctx.fillStyle = simulatorHp < 30 ? "#ef4444" : simulatorHp < 60 ? "#f59e0b" : "#10b981";
+    ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * hpPercentage, barHeight - 2);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 8px monospace";
+    ctx.fillText(`HP ${simulatorHp}%`, barX + barWidth + 5, barY + 7);
+
+    // 4. Ammo bar bottom right
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 10px monospace";
+    let ammoText = "";
+    if (simulatorAmmo === "full") {
+      ammoText = "✏️ BALAS: 30 / 90";
+    } else if (simulatorAmmo === "low") {
+      ammoText = "⚠️ BALAS: 5 / 15";
+      ctx.fillStyle = "#eab308";
+    } else {
+      ammoText = "✕ SIN BALAS!";
+      ctx.fillStyle = "#ef4444";
+    }
+    ctx.fillText(ammoText, width - 110, height - 13);
+
+    // 5. Radar mini-map top right
+    const rx = width - 40;
+    const ry = 40;
+    const rRadius = 22;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.beginPath();
+    ctx.arc(rx, ry, rRadius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Pulse circles inside radar
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.15)";
+    ctx.beginPath();
+    ctx.arc(rx, ry, rRadius * 0.5, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Target sweep line rotating
+    const sweepAngle = (Date.now() / 600) % (Math.PI * 2);
+    ctx.strokeStyle = "rgba(0, 245, 150, 0.3)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + rRadius * Math.cos(sweepAngle), ry + rRadius * Math.sin(sweepAngle));
+    ctx.stroke();
+
+    // Red dot on radar if threat is high
+    if (simulatorThreat !== "none") {
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(rx + 8, ry - 6, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  // Re-draw on state adjustments
+  useEffect(() => {
+    drawMockGame();
+  }, [drawMockGame]);
+
+  // Periodic animation trigger for radar rotation and HP blink
+  useEffect(() => {
+    const timer = setInterval(() => {
+      drawMockGame();
+    }, 150);
+    return () => clearInterval(timer);
+  }, [drawMockGame]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setSimulatorUploadedImage(event.target.result as string);
+        setSimulatorScenario("upload");
+        setErrorMessage("📸 Captura de pantalla personalizada cargada. ¡Presiona ESCANEAR con Meteory!");
+        setTimeout(() => setErrorMessage(""), 3500);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const scanMockScreen = async () => {
+    const canvas = simCanvasRef.current;
+    if (!canvas) return;
+
+    setIsScanning(true);
+    setScanResultText("");
+    const startTime = Date.now();
+
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.65);
+      const base64Data = dataUrl.split(",")[1];
+
+      const res = await fetch("/api/analyze-screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64Data })
+      });
+
+      const latency = Date.now() - startTime;
+      setScanLatency(latency);
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.text || "¡Análisis estelar completado!";
+        setScanResultText(text);
+
+        const simulatedUserMsg: Message = {
+          role: "user",
+          text: `[ESCÁNER SIMULADO] Análisis en vivo del juego ${simulatorScenario.toUpperCase()}. HP: ${simulatorHp}%, Munición: ${simulatorAmmo.toUpperCase()}, Amenaza: ${simulatorThreat.toUpperCase()}.`,
+          timestamp: new Date()
+        };
+        const simulatedModelMsg: Message = {
+          role: "model",
+          text: text,
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, simulatedUserMsg, simulatedModelMsg]);
+        speakText(text);
+      } else {
+        const errText = "Error al contactar con la API de análisis visual.";
+        setScanResultText(errText);
+        setErrorMessage(errText);
+      }
+    } catch (err: any) {
+      console.error("Scan error:", err);
+      const errText = "Error de red al procesar el escaneo.";
+      setScanResultText(errText);
+      setErrorMessage(errText);
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   // Helper to send Gemini quick prompt from floating ball
   const sendFloatingBallPrompt = (promptType: "advice" | "joke" | "fps" | "custom", customMsg?: string) => {
@@ -1307,212 +1720,402 @@ export default function App() {
       )}
 
       {/* MAIN CONTAINER */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-2.5 sm:px-6 py-2 sm:py-4 flex flex-col items-center justify-center space-y-3 sm:space-y-6 relative z-10 overflow-hidden" id="main-content">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-2.5 sm:px-6 py-2 sm:py-4 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10" id="main-content">
         
-        {/* CENTERED STAR CONTAINER */}
-        <div className="w-full flex flex-col items-center justify-center relative min-h-[180px] xs:min-h-[240px] sm:min-h-[300px] overflow-hidden" id="visualizer-container">
-          
-          {/* 3D CANVAS FOR STAR */}
-          <div 
-            className="w-[200px] h-[200px] xs:w-[260px] xs:h-[260px] sm:w-[320px] sm:h-[320px] relative z-10 flex items-center justify-center" 
-            id="star-canvas-box"
-            onClick={handleStarClick}
-          >
-            <canvas 
-              ref={canvasRef} 
-              className="w-full h-full cursor-pointer touch-none active:scale-95 transition-transform duration-150"
-              title="Meteory Star 3D - Presiona para hablar con la IA"
-            />
+        {/* COLUMNA IZQUIERDA: ESTRELLA 3D Y CONVERSACIÓN */}
+        <div className="lg:col-span-7 flex flex-col items-center justify-start space-y-3 sm:space-y-6 w-full">
+          {/* CENTERED STAR CONTAINER */}
+          <div className="w-full flex flex-col items-center justify-center relative min-h-[180px] xs:min-h-[240px] sm:min-h-[300px] overflow-hidden" id="visualizer-container">
+            
+            {/* 3D CANVAS FOR STAR */}
+            <div 
+              className="w-[200px] h-[200px] xs:w-[260px] xs:h-[260px] sm:w-[320px] sm:h-[320px] relative z-10 flex items-center justify-center" 
+              id="star-canvas-box"
+              onClick={handleStarClick}
+            >
+              <canvas 
+                ref={canvasRef} 
+                className="w-full h-full cursor-pointer touch-none active:scale-95 transition-transform duration-150"
+                title="Meteory Star 3D - Presiona para hablar con la IA"
+              />
 
-            {/* Float HUD Indicators */}
-            <div className="absolute top-1 left-1 border border-[#001440]/60 bg-black/80 rounded px-1.5 py-0.5 sm:px-2 sm:py-1 font-mono text-[8px] sm:text-[9px] text-slate-400 space-y-0.5">
-              <div className="flex items-center space-x-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  appState === "listening" 
-                    ? "bg-cyan-400 animate-ping" 
-                    : appState === "generating" 
-                      ? "bg-purple-400 animate-pulse" 
-                      : "bg-blue-600"
-                }`} />
-                <span className="uppercase tracking-widest">{appState}</span>
+              {/* Float HUD Indicators */}
+              <div className="absolute top-1 left-1 border border-[#001440]/60 bg-black/80 rounded px-1.5 py-0.5 sm:px-2 sm:py-1 font-mono text-[8px] sm:text-[9px] text-slate-400 space-y-0.5">
+                <div className="flex items-center space-x-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    appState === "listening" 
+                      ? "bg-cyan-400 animate-ping" 
+                      : appState === "generating" 
+                        ? "bg-purple-400 animate-pulse" 
+                        : "bg-blue-600"
+                  }`} />
+                  <span className="uppercase tracking-widest">{appState}</span>
+                </div>
+                <div>SCALE: {starScaleRef.current.toFixed(1)}x</div>
+                <div>GLOW: {glowBlurRef.current.toFixed(0)}px</div>
               </div>
-              <div>SCALE: {starScaleRef.current.toFixed(1)}x</div>
-              <div>GLOW: {glowBlurRef.current.toFixed(0)}px</div>
+            </div>
+
+            {/* STATE SPECIFIC CAPTIONS */}
+            <div className="text-center mt-2 sm:mt-3 h-7 sm:h-8 flex flex-col justify-center" id="state-captions">
+              <AnimatePresence mode="wait">
+                {appState === "listening" && (
+                  <motion.div
+                    key="listening"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="text-cyan-400 font-mono text-[11px] sm:text-xs tracking-widest uppercase flex items-center space-x-1.5 justify-center"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    <span>Escuchando tu voz...</span>
+                  </motion.div>
+                )}
+
+                {appState === "generating" && (
+                  <motion.div
+                    key="generating"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="text-purple-400 font-mono text-[11px] sm:text-xs tracking-widest uppercase flex items-center space-x-1.5 justify-center"
+                  >
+                    <span className="w-2.5 h-2.5 bg-purple-500 rounded-sm animate-spin" />
+                    <span>Meteory respondiendo...</span>
+                  </motion.div>
+                )}
+
+                {appState === "idle" && (
+                  <motion.p
+                    key="idle"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-slate-500 font-mono text-[10px] sm:text-xs tracking-wider cursor-pointer hover:text-cyan-400 transition-colors flex items-center space-x-1 px-2"
+                    onClick={handleStarClick}
+                  >
+                    <span>✨</span>
+                    <span>Presiona la estrella para hablar con la IA</span>
+                    <span>✨</span>
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
-          {/* STATE SPECIFIC CAPTIONS */}
-          <div className="text-center mt-2 sm:mt-3 h-7 sm:h-8 flex flex-col justify-center" id="state-captions">
-            <AnimatePresence mode="wait">
-              {appState === "listening" && (
-                <motion.div
-                  key="listening"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="text-cyan-400 font-mono text-[11px] sm:text-xs tracking-widest uppercase flex items-center space-x-1.5 justify-center"
-                >
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                  <span>Escuchando tu voz...</span>
-                </motion.div>
+          {/* UNIFIED QUESTIONS AND ANSWERS RECTANGLE BOX */}
+          <div 
+            className="w-full border-2 border-[#0054F0] bg-black rounded-xl overflow-hidden shadow-[0_0_20px_rgba(0,84,240,0.3)] flex flex-col relative z-20" 
+            id="cosmos-chat-box"
+          >
+            {/* Sub Header for context/state */}
+            <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-black border-b border-[#001440]/60 flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
+              <span className="text-cyan-400 flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>CONVERSACIÓN CON LA IA</span>
+              </span>
+              <div className="flex space-x-1.5 sm:space-x-2 text-[8px] sm:text-[9px] text-slate-400 font-mono">
+                <span>VOZ: ACTIVA</span>
+                <span>•</span>
+                <span>GEMINI 2.5</span>
+              </div>
+            </div>
+
+            {/* MESSAGE TRANSCRIPTS LIST */}
+            <div className="p-3 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4 max-h-[150px] xs:max-h-[200px] sm:max-h-[260px] scrollbar-thin scrollbar-thumb-blue-950 font-mono" id="messages-list">
+              {messages.length === 0 && !liveTranscript && (
+                <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
+                  <Compass className="w-6 h-6 text-slate-600 animate-pulse" />
+                  <p className="text-xs text-slate-500 max-w-[320px]">
+                    Escribe una pregunta abajo o presiona la estrella de arriba para hablar usando tu micrófono.
+                  </p>
+                </div>
               )}
 
-              {appState === "generating" && (
-                <motion.div
-                  key="generating"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="text-purple-400 font-mono text-[11px] sm:text-xs tracking-widest uppercase flex items-center space-x-1.5 justify-center"
+              {/* Render historic conversation */}
+              {messages.map((msg, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                  id={`message-${idx}`}
                 >
-                  <span className="w-2.5 h-2.5 bg-purple-500 rounded-sm animate-spin" />
-                  <span>Meteory respondiendo...</span>
-                </motion.div>
+                  <div className={`max-w-[90%] rounded-lg px-3 py-2 text-xs font-mono relative ${
+                    msg.role === "user"
+                      ? "bg-blue-950/40 border border-blue-500/20 text-slate-200"
+                      : "bg-slate-950/80 border border-purple-950/60 text-slate-200 shadow-[0_0_15px_rgba(153,0,255,0.05)]"
+                  }`}>
+                    <span className={`text-[8px] block mb-1 font-bold ${
+                      msg.role === "user" ? "text-cyan-400 text-right" : "text-purple-400"
+                    }`}>
+                      {msg.role === "user" ? "[PREGUNTA] > " : "[RESPUESTA IA] > "}
+                    </span>
+                    <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  </div>
+                  <span className="text-[7px] text-slate-600 mt-0.5 px-1 font-mono">
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+
+              {/* LIVE REALTIME TRANSCRIPT BUBBLE */}
+              {liveTranscript && (
+                <div className="flex flex-col items-end" id="live-bubble">
+                  <div className="max-w-[90%] rounded-lg px-3 py-2 text-xs font-mono bg-cyan-950/20 border border-cyan-500/30 text-cyan-200 animate-pulse">
+                    <span className="text-[8px] block mb-1 font-bold text-cyan-400 text-right">
+                      [ESCUCHANDO...] &gt;
+                    </span>
+                    <p>{liveTranscript}</p>
+                  </div>
+                </div>
               )}
 
-              {appState === "idle" && (
-                <motion.p
-                  key="idle"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-slate-500 font-mono text-[10px] sm:text-xs tracking-wider cursor-pointer hover:text-cyan-400 transition-colors flex items-center space-x-1 px-2"
-                  onClick={handleStarClick}
-                >
-                  <span>✨</span>
-                  <span>Presiona la estrella para hablar con la IA</span>
-                  <span>✨</span>
-                </motion.p>
-              )}
-            </AnimatePresence>
+              {/* Empty element for anchor scroll */}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* SYSTEM MESSAGES / ERRORS inside the box if present */}
+            {errorMessage && (
+              <div className="mx-4 my-2 p-2 bg-rose-950/30 border border-rose-800/40 rounded-lg flex items-center space-x-2 text-[10px] text-rose-300 font-mono" id="error-card">
+                <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping flex-shrink-0" />
+                <p className="flex-1">{errorMessage}</p>
+              </div>
+            )}
+
+            {/* RED NEON MODO GAMING BUTTON */}
+            <div className="p-3 pt-2 bg-black border-t border-rose-950/60 flex flex-col space-y-1.5" id="modo-gaming-bar">
+              <button
+                onClick={() => {
+                  requestOverlayPermissionAutomatic();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs sm:text-sm font-mono tracking-wider shadow-[0_0_20px_rgba(225,29,72,0.6)] border border-rose-400/50 flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer uppercase"
+                id="modo-gaming-neon-btn"
+                title="Activar Modo Gaming y Bolita Flotante de FPS Reales"
+              >
+                <Gamepad2 className="w-4 h-4 text-white animate-bounce" />
+                <span>🎮 MODO GAMING</span>
+              </button>
+              <p className="text-[9px] text-slate-500 text-center font-mono uppercase">
+                Monitoreo de FPS reales y asistencia de IA superpuesta en tus juegos
+              </p>
+            </div>
+
+            {/* TEXT CHAT FALLBACK / DESCRIBE AN APP INPUT */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (inputText.trim()) {
+                  queryMeteoryAPI(inputText);
+                }
+              }}
+              className="p-3 bg-black border-t border-[#001440]/60 flex items-center space-x-2"
+              id="chat-form"
+            >
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={appState === "listening" ? "Capturando audio del micrófono..." : "Describe an app..."}
+                disabled={appState === "listening"}
+                className="flex-1 bg-black border border-[#001440] rounded-lg px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#0078F0] focus:shadow-[0_0_10px_rgba(0,120,240,0.2)] transition-all disabled:opacity-55"
+                id="chat-input"
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim() || appState === "listening"}
+                className="p-2 px-4 rounded-lg bg-slate-900 border border-[#001440] text-cyan-400 hover:border-[#0078F0] hover:text-cyan-200 text-xs font-mono transition-all disabled:opacity-40 select-none cursor-pointer"
+                id="send-btn"
+              >
+                ENVIAR
+              </button>
+            </form>
           </div>
         </div>
 
-        {/* UNIFIED QUESTIONS AND ANSWERS RECTANGLE BOX */}
-        <div 
-          className="w-full max-w-2xl border-2 border-[#0054F0] bg-black rounded-xl overflow-hidden shadow-[0_0_20px_rgba(0,84,240,0.3)] flex flex-col relative z-20" 
-          id="cosmos-chat-box"
-        >
-          {/* Sub Header for context/state */}
-          <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-black border-b border-[#001440]/60 flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
-            <span className="text-cyan-400 flex items-center space-x-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>CONVERSACIÓN CON LA IA</span>
-            </span>
-            <div className="flex space-x-1.5 sm:space-x-2 text-[8px] sm:text-[9px] text-slate-400 font-mono">
-              <span>VOZ: ACTIVA</span>
-              <span>•</span>
-              <span>GEMINI 2.5</span>
+        {/* COLUMNA DERECHA: SIMULADOR DE PANTALLA EN VIVO / TEST DE VISIÓN */}
+        <div className="lg:col-span-5 flex flex-col space-y-4 sm:space-y-6 w-full h-full">
+          <div className="bg-[#01081a]/90 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-4 sm:p-5 flex flex-col space-y-4 shadow-[0_0_25px_rgba(0,240,255,0.15)] h-full">
+            
+            {/* Header section */}
+            <div className="flex items-center justify-between border-b border-cyan-950 pb-2">
+              <div className="flex items-center space-x-2">
+                <Gamepad2 className="w-5 h-5 text-cyan-400 animate-pulse" />
+                <div>
+                  <h2 className="text-sm sm:text-base font-mono font-bold text-cyan-300 uppercase tracking-wider">Simulador de Visión</h2>
+                  <p className="text-[10px] text-slate-400 font-mono">Test de Reconocimiento y Voz de Gemini</p>
+                </div>
+              </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${isScanning ? 'bg-cyan-950 border-cyan-500 text-cyan-300 animate-pulse' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                {isScanning ? "SINC_OK" : "STANDBY"}
+              </span>
             </div>
-          </div>
 
-          {/* MESSAGE TRANSCRIPTS LIST */}
-          <div className="p-3 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4 max-h-[150px] xs:max-h-[200px] sm:max-h-[260px] scrollbar-thin scrollbar-thumb-blue-950 font-mono" id="messages-list">
-            {messages.length === 0 && !liveTranscript && (
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
-                <Compass className="w-6 h-6 text-slate-600 animate-pulse" />
-                <p className="text-xs text-slate-500 max-w-[320px]">
-                  Escribe una pregunta abajo o presiona la estrella de arriba para hablar usando tu micrófono.
+            {/* Mobile Mockup Phone Bezel */}
+            <div className="relative mx-auto w-full max-w-[280px] aspect-[4/3] bg-black rounded-3xl p-3 border-4 border-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.8)] overflow-hidden">
+              <div className="absolute top-1 left-1/2 transform -translate-x-1/2 w-16 h-1.5 bg-slate-800 rounded-full z-20"></div>
+              
+              {/* Phone Screen Canvas Container */}
+              <div className="relative w-full h-full bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-900">
+                <canvas 
+                  ref={simCanvasRef} 
+                  width={260} 
+                  height={195} 
+                  className="w-full h-full block object-cover"
+                />
+
+                {/* Laser scanner animation sweep overlay when scanning */}
+                {isScanning && (
+                  <div className="absolute inset-0 pointer-events-none z-15 flex flex-col justify-between">
+                    <div className="absolute w-full h-1 bg-cyan-400 shadow-[0_0_12px_#00f0ff] animate-[bounce_2s_infinite]"></div>
+                    <div className="absolute inset-0 bg-cyan-950/20 backdrop-blur-[0.5px]"></div>
+                  </div>
+                )}
+
+                {/* Active scan status indicator on screen overlay */}
+                {isScanning && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 space-y-2">
+                    <div className="w-8 h-8 border-2 border-t-cyan-400 border-r-cyan-400 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                    <span className="text-[10px] font-mono text-cyan-300 uppercase tracking-widest animate-pulse">Analizando Píxeles...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Scenario Selector */}
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-[10px] font-mono text-slate-400 uppercase">Selecciona el Escenario de Juego:</label>
+              <div className="grid grid-cols-2 xs:grid-cols-3 gap-1.5">
+                <button 
+                  onClick={() => setSimulatorScenario("freefire")}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-mono transition-all text-left flex items-center space-x-1 select-none cursor-pointer ${simulatorScenario === "freefire" ? 'bg-orange-950/60 border-orange-500 text-orange-300' : 'bg-slate-900/40 border-slate-950 text-slate-400 hover:border-slate-800'}`}
+                >
+                  <span>🔥 Free Fire</span>
+                </button>
+                <button 
+                  onClick={() => setSimulatorScenario("cod")}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-mono transition-all text-left flex items-center space-x-1 select-none cursor-pointer ${simulatorScenario === "cod" ? 'bg-indigo-950/60 border-indigo-500 text-indigo-300' : 'bg-slate-900/40 border-slate-950 text-slate-400 hover:border-slate-800'}`}
+                >
+                  <span>🎖️ COD Mob</span>
+                </button>
+                <button 
+                  onClick={() => setSimulatorScenario("minecraft")}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-mono transition-all text-left flex items-center space-x-1 select-none cursor-pointer ${simulatorScenario === "minecraft" ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300' : 'bg-slate-900/40 border-slate-950 text-slate-400 hover:border-slate-800'}`}
+                >
+                  <span>🧱 Craft / Rob</span>
+                </button>
+                <button 
+                  onClick={() => setSimulatorScenario("pubg")}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-mono transition-all text-left flex items-center space-x-1 select-none cursor-pointer ${simulatorScenario === "pubg" ? 'bg-yellow-950/60 border-yellow-500 text-yellow-300' : 'bg-slate-900/40 border-slate-950 text-slate-400 hover:border-slate-800'}`}
+                >
+                  <span>🪂 PUBG Mob</span>
+                </button>
+                
+                {/* Custom Capture Upload */}
+                <label className={`px-2 py-1 rounded-lg border text-[10px] font-mono transition-all text-left flex items-center space-x-1 cursor-pointer select-none ${simulatorScenario === "upload" ? 'bg-cyan-950/60 border-cyan-500 text-cyan-300' : 'bg-slate-900/40 border-slate-950 text-slate-400 hover:border-slate-800'}`}>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <span>📤 Subir Captura</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Controls to adjust scenario parameters */}
+            <div className="bg-slate-950/80 rounded-xl p-3 border border-blue-950/50 space-y-3">
+              {/* Vida / Health slider */}
+              <div className="flex flex-col space-y-1">
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-slate-400">VIDA EN PANTALLA (HP):</span>
+                  <span className={simulatorHp < 30 ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-200'}>{simulatorHp}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="100" 
+                  step="5"
+                  value={simulatorHp}
+                  onChange={(e) => setSimulatorHp(parseInt(e.target.value))}
+                  className="w-full accent-cyan-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Bullets Option */}
+                <div className="flex flex-col space-y-1">
+                  <span className="text-[10px] font-mono text-slate-400">MUNICIÓN EN HUD:</span>
+                  <select 
+                    value={simulatorAmmo}
+                    onChange={(e) => setSimulatorAmmo(e.target.value as any)}
+                    className="bg-slate-900 border border-blue-950 text-slate-300 rounded px-1.5 py-1 text-[10px] font-mono focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="full">Suficiente</option>
+                    <option value="low">Baja ⚠️</option>
+                    <option value="empty">Sin Balas ✕</option>
+                  </select>
+                </div>
+
+                {/* Threat Level Option */}
+                <div className="flex flex-col space-y-1">
+                  <span className="text-[10px] font-mono text-slate-400">AMENAZA / ENEMIGO:</span>
+                  <select 
+                    value={simulatorThreat}
+                    onChange={(e) => setSimulatorThreat(e.target.value as any)}
+                    className="bg-slate-900 border border-blue-950 text-slate-300 rounded px-1.5 py-1 text-[10px] font-mono focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="none">Ninguno</option>
+                    <option value="medium">Distante</option>
+                    <option value="high">¡CRÍTICO! ⚠️</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Scan execution button */}
+            <div className="flex flex-col space-y-1">
+              <button
+                onClick={scanMockScreen}
+                disabled={isScanning}
+                className={`w-full py-2.5 rounded-xl border font-mono font-bold text-xs uppercase tracking-widest transition-all select-none cursor-pointer flex items-center justify-center space-x-2 ${
+                  isScanning 
+                    ? 'bg-cyan-950/20 border-cyan-800/40 text-cyan-600' 
+                    : 'bg-cyan-950/80 border-cyan-500 text-cyan-300 hover:bg-cyan-900/90 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)]'
+                }`}
+              >
+                <Sparkles className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+                <span>{isScanning ? "PROCESANDO ESCANEO..." : "🔮 ESCANEAR CON METEORY IA"}</span>
+              </button>
+
+              {scanLatency > 0 && (
+                <div className="flex justify-between text-[8px] font-mono text-slate-500 px-1">
+                  <span>LATENCIA: {scanLatency}ms</span>
+                  <span>MOTOR: GEMINI VISION REAL</span>
+                </div>
+              )}
+            </div>
+
+            {/* Scan result display */}
+            {scanResultText && (
+              <div className="bg-[#020d24] border border-cyan-500/20 rounded-xl p-3 space-y-1 shadow-inner relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-8 h-8 bg-cyan-500/10 blur-xl rounded-full"></div>
+                <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[9px] uppercase">
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Sugerencia Táctica en Vivo:</span>
+                </div>
+                <p className="text-[11px] font-mono text-slate-300 leading-relaxed max-h-[120px] overflow-y-auto pr-1">
+                  {scanResultText}
                 </p>
               </div>
             )}
 
-            {/* Render historic conversation */}
-            {messages.map((msg, idx) => (
-              <div 
-                key={idx} 
-                className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
-                id={`message-${idx}`}
-              >
-                <div className={`max-w-[90%] rounded-lg px-3 py-2 text-xs font-mono relative ${
-                  msg.role === "user"
-                    ? "bg-blue-950/40 border border-blue-500/20 text-slate-200"
-                    : "bg-slate-950/80 border border-purple-950/60 text-slate-200 shadow-[0_0_15px_rgba(153,0,255,0.05)]"
-                }`}>
-                  <span className={`text-[8px] block mb-1 font-bold ${
-                    msg.role === "user" ? "text-cyan-400 text-right" : "text-purple-400"
-                  }`}>
-                    {msg.role === "user" ? "[PREGUNTA] > " : "[RESPUESTA IA] > "}
-                  </span>
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                </div>
-                <span className="text-[7px] text-slate-600 mt-0.5 px-1 font-mono">
-                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </span>
-              </div>
-            ))}
-
-            {/* LIVE REALTIME TRANSCRIPT BUBBLE */}
-            {liveTranscript && (
-              <div className="flex flex-col items-end" id="live-bubble">
-                <div className="max-w-[90%] rounded-lg px-3 py-2 text-xs font-mono bg-cyan-950/20 border border-cyan-500/30 text-cyan-200 animate-pulse">
-                  <span className="text-[8px] block mb-1 font-bold text-cyan-400 text-right">
-                    [ESCUCHANDO...] &gt;
-                  </span>
-                  <p>{liveTranscript}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Empty element for anchor scroll */}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* SYSTEM MESSAGES / ERRORS inside the box if present */}
-          {errorMessage && (
-            <div className="mx-4 my-2 p-2 bg-rose-950/30 border border-rose-800/40 rounded-lg flex items-center space-x-2 text-[10px] text-rose-300 font-mono" id="error-card">
-              <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping flex-shrink-0" />
-              <p className="flex-1">{errorMessage}</p>
+            {/* Explanatory section */}
+            <div className="bg-slate-950/40 rounded-xl p-3 border border-slate-900 text-[10px] font-mono text-slate-400 space-y-1.5 leading-relaxed mt-auto">
+              <p className="text-cyan-400/80 font-bold uppercase">💡 ¿Cómo funciona esta prueba?</p>
+              <p>
+                Este simulador interactivo recrea la funcionalidad de la APK de Android (<span className="text-slate-300 font-bold">ServicioEscaneoPantalla.java</span>).
+              </p>
+              <p>
+                Extrae los píxeles reales del canvas de juego dinámico (o tu propia foto subida), los envía a la API real de <span className="text-slate-300 font-bold">Gemini Vision</span>, y sintetiza la táctica por voz al instante.
+              </p>
             </div>
-          )}
 
-          {/* RED NEON MODO GAMING BUTTON */}
-          <div className="p-3 pt-2 bg-black border-t border-rose-950/60 flex flex-col space-y-1.5" id="modo-gaming-bar">
-            <button
-              onClick={() => {
-                requestOverlayPermissionAutomatic();
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs sm:text-sm font-mono tracking-wider shadow-[0_0_20px_rgba(225,29,72,0.6)] border border-rose-400/50 flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer uppercase"
-              id="modo-gaming-neon-btn"
-              title="Activar Modo Gaming y Bolita Flotante de FPS Reales"
-            >
-              <Gamepad2 className="w-4 h-4 text-white animate-bounce" />
-              <span>🎮 MODO GAMING</span>
-            </button>
-            <p className="text-[9px] text-slate-500 text-center font-mono uppercase">
-              Monitoreo de FPS reales y asistencia de IA superpuesta en tus juegos
-            </p>
           </div>
-
-          {/* TEXT CHAT FALLBACK / DESCRIBE AN APP INPUT */}
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (inputText.trim()) {
-                queryMeteoryAPI(inputText);
-              }
-            }}
-            className="p-3 bg-black border-t border-[#001440]/60 flex items-center space-x-2"
-            id="chat-form"
-          >
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={appState === "listening" ? "Capturando audio del micrófono..." : "Describe an app..."}
-              disabled={appState === "listening"}
-              className="flex-1 bg-black border border-[#001440] rounded-lg px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#0078F0] focus:shadow-[0_0_10px_rgba(0,120,240,0.2)] transition-all disabled:opacity-55"
-              id="chat-input"
-            />
-            <button
-              type="submit"
-              disabled={!inputText.trim() || appState === "listening"}
-              className="p-2 px-4 rounded-lg bg-slate-900 border border-[#001440] text-cyan-400 hover:border-[#0078F0] hover:text-cyan-200 text-xs font-mono transition-all disabled:opacity-40 select-none cursor-pointer"
-              id="send-btn"
-            >
-              ENVIAR
-            </button>
-          </form>
         </div>
       </main>
 
