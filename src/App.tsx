@@ -1817,7 +1817,7 @@ export default function App() {
               <div className="flex space-x-1.5 sm:space-x-2 text-[8px] sm:text-[9px] text-slate-400 font-mono">
                 <span>VOZ: ACTIVA</span>
                 <span>•</span>
-                <span>GEMINI 2.5</span>
+                <span>GEMINI 3.6</span>
               </div>
             </div>
 

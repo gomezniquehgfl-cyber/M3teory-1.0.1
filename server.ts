@@ -111,18 +111,61 @@ REGLAS INQUEBRANTABLES:
 - Responde estrictamente con el JSON solicitado. No agregues texto fuera del JSON.
 - Habla en español latinoamericano. Haz comentarios agudos como si estuvieras viendo por encima de su hombro (ejemplo: "¡Cuidado a la izquierda, ese rival no viene a saludarte! 😏", "Zona segura cerrándose, ¡corre antes de que te conviertas en polvo cósmico! 🚀").`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.85,
-      },
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: "application/json",
+          temperature: 0.85,
+        },
+      });
+    } catch (modelErr: any) {
+      console.warn("gemini-3.6-flash failed for screen analysis, trying gemini-3.1-flash fallback...", modelErr);
+      try {
+        response = await ai.models.generateContent({
+          model: "gemini-3.1-flash",
+          contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+          config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.85,
+          },
+        });
+      } catch (innerErr: any) {
+        console.warn("gemini-3.1-flash fallback failed for screen analysis, trying gemini-2.5-flash...", innerErr);
+        response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+          config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.85,
+          },
+        });
+      }
+    }
 
     const responseText = response?.text || "{}";
-    const data = JSON.parse(responseText.trim());
+    let data;
+    try {
+      data = JSON.parse(responseText.trim());
+    } catch (parseErr) {
+      // Robust recovery for JSON wrapped in markdown tags from older/fallback models
+      try {
+        const cleanText = responseText.replace(/```json/gi, "").replace(/```/g, "").trim();
+        data = JSON.parse(cleanText);
+      } catch (nestedErr) {
+        console.error("Failed to parse Gemini response as JSON:", responseText);
+        data = {
+          detected: true,
+          text: "¡Sigue adelante explorador, estoy calibrando los sensores estelares! 🚀",
+          priority: "HIGH"
+        };
+      }
+    }
     res.json(data);
   } catch (error: any) {
     console.error("Error analyzing screen with Gemini Vision:", error);
