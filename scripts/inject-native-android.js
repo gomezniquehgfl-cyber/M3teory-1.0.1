@@ -220,6 +220,9 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import java.util.HashMap;
 import java.util.Locale;
 
@@ -231,6 +234,15 @@ public class ServicioBolitaFlotante extends Service {
     private TextView tvFps;
     private EditText etPregunta;
     private TextView tvRespuesta;
+    
+    // HUD panel views
+    private TextView tvRendimiento;
+    private TextView tvFpsPanel;
+    private TextView tvGama;
+    private Button btnEco;
+    private TextView tvJuegoDetectado;
+    private Spinner spinnerJuego;
+    
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams chatParams;
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -246,6 +258,9 @@ public class ServicioBolitaFlotante extends Service {
     private Vibrator vibrator;
     private boolean isChatOpen = false;
     private boolean isScanningActive = true;
+    private boolean isEcoMode = false;
+    private long lastSpeakTime = 0;
+    private String manualGameSelect = "Auto-Detectar";
 
     private View burbuja;
     private WindowManager.LayoutParams burbujaParams;
@@ -262,8 +277,52 @@ public class ServicioBolitaFlotante extends Service {
                     }
                 } else if ("METEORY_MOSTRAR_BURBUJA".equals(intent.getAction())) {
                     String texto = intent.getStringExtra("texto");
+                    boolean autoSpeak = intent.getBooleanExtra("autoSpeak", false);
                     if (texto != null && !texto.isEmpty()) {
-                        mostrarBurbujaFlotante(texto);
+                        long now = System.currentTimeMillis();
+                        // Enforce 20-second interval only on spontaneous comments, not direct button clicks
+                        if (!autoSpeak || (now - lastSpeakTime >= 20000)) {
+                            if (autoSpeak) {
+                                lastSpeakTime = now;
+                            }
+                            mostrarBurbujaFlotante(texto);
+                        }
+                    }
+                } else if ("METEORY_RESULTADO_VISION".equals(intent.getAction())) {
+                    String jsonStr = intent.getStringExtra("json");
+                    if (jsonStr != null && !jsonStr.isEmpty()) {
+                        try {
+                            org.json.JSONObject data = new org.json.JSONObject(jsonStr);
+                            String app = data.optString("app_o_juego", "desconocido");
+                            String queHace = data.optString("que_hace", "");
+                            String bienMal = data.optString("bien_mal_normal", "NORMAL");
+                            String comentario = data.optString("comentario_meteory", "");
+                            boolean hablar = data.optBoolean("deberia_hablar", false);
+
+                            // Update detected App text in our HUD panel
+                            if (tvJuegoDetectado != null) {
+                                if ("Auto-Detectar".equals(manualGameSelect)) {
+                                    tvJuegoDetectado.setText(app);
+                                } else {
+                                    tvJuegoDetectado.setText(manualGameSelect + " (Manual)");
+                                }
+                            }
+
+                            // Update performance text
+                            if (tvRendimiento != null) {
+                                tvRendimiento.setText("Rendimiento: " + bienMal);
+                            }
+
+                            // Trigger spontaneous speech bubbles
+                            if (hablar && !comentario.isEmpty()) {
+                                Intent bubbleIntent = new Intent("METEORY_MOSTRAR_BURBUJA");
+                                bubbleIntent.putExtra("texto", comentario);
+                                bubbleIntent.putExtra("autoSpeak", true);
+                                sendBroadcast(bubbleIntent);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -297,6 +356,7 @@ public class ServicioBolitaFlotante extends Service {
         IntentFilter filter = new IntentFilter();
         filter.addAction("METEORY_RESPUESTA_GEMINI");
         filter.addAction("METEORY_MOSTRAR_BURBUJA");
+        filter.addAction("METEORY_RESULTADO_VISION");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receptorRespuesta, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -494,6 +554,14 @@ public class ServicioBolitaFlotante extends Service {
             Button btnBurla = panelChat.findViewById(getResources().getIdentifier("btn_burla", "id", getPackageName()));
             Button btnAnalizar = panelChat.findViewById(getResources().getIdentifier("btn_analizar", "id", getPackageName()));
 
+            // Find new HUD elements
+            tvRendimiento = panelChat.findViewById(getResources().getIdentifier("tv_rendimiento", "id", getPackageName()));
+            tvFpsPanel = panelChat.findViewById(getResources().getIdentifier("tv_fps_panel", "id", getPackageName()));
+            tvGama = panelChat.findViewById(getResources().getIdentifier("tv_gama", "id", getPackageName()));
+            btnEco = panelChat.findViewById(getResources().getIdentifier("btn_eco", "id", getPackageName()));
+            tvJuegoDetectado = panelChat.findViewById(getResources().getIdentifier("tv_juego_detectado", "id", getPackageName()));
+            spinnerJuego = panelChat.findViewById(getResources().getIdentifier("spinner_juego", "id", getPackageName()));
+
             if (tvRespuesta != null) tvRespuesta.setMovementMethod(new ScrollingMovementMethod());
 
             if (btnCerrar != null) {
@@ -543,6 +611,53 @@ public class ServicioBolitaFlotante extends Service {
                         tvRespuesta.setText("⏳ Analizando tu pantalla en vivo...");
                         Intent intent = new Intent("METEORY_FORZAR_ESCANEO");
                         sendBroadcast(intent);
+                    }
+                });
+            }
+
+            // Spinner setup for manual game overrides
+            if (spinnerJuego != null) {
+                final String[] juegos = {"Auto-Detectar", "Free Fire", "Minecraft", "Roblox", "Call of Duty", "PUBG", "Brawl Stars", "Clash Royale", "TikTok", "Escritorio"};
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, juegos);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spinnerJuego.setAdapter(adapter);
+                spinnerJuego.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        manualGameSelect = juegos[position];
+                        if (tvJuegoDetectado != null) {
+                            if ("Auto-Detectar".equals(manualGameSelect)) {
+                                tvJuegoDetectado.setText("Buscando...");
+                            } else {
+                                tvJuegoDetectado.setText(manualGameSelect + " (Manual)");
+                            }
+                        }
+                        if (position > 0) {
+                            hablarTexto("Cargando perfil táctico para " + manualGameSelect);
+                        }
+                    }
+                    @Override public void onNothingSelected(AdapterView<?> parent) {}
+                });
+            }
+
+            // ECO Mode button handler
+            if (btnEco != null) {
+                btnEco.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        isEcoMode = !isEcoMode;
+                        if (isEcoMode) {
+                            btnEco.setText("ECO: ON");
+                            btnEco.setBackgroundColor(Color.parseColor("#00FF88"));
+                            hablarTexto("Ahorro estelar encendido.");
+                        } else {
+                            btnEco.setText("ECO: OFF");
+                            btnEco.setBackgroundColor(Color.parseColor("#FF4444"));
+                            hablarTexto("Modo rendimiento absoluto.");
+                        }
+                        Intent ecoIntent = new Intent("METEORY_CAMBIAR_INTERVALO");
+                        ecoIntent.putExtra("intervalo", isEcoMode ? 10000 : 5000);
+                        sendBroadcast(ecoIntent);
                     }
                 });
             }
@@ -739,6 +854,14 @@ public class ServicioBolitaFlotante extends Service {
                                                 realFps >= 35 ? Color.parseColor("#FFD700") :
                                                 Color.parseColor("#FF4444");
                                     tvFps.setTextColor(color);
+                                }
+                                // Sync FPS display in the opened panel as well
+                                if (tvFpsPanel != null) {
+                                    tvFpsPanel.setText(realFps + " FPS");
+                                    int color = realFps >= 55 ? Color.parseColor("#00FF88") :
+                                                realFps >= 35 ? Color.parseColor("#FFD700") :
+                                                Color.parseColor("#FF4444");
+                                    tvFpsPanel.setTextColor(color);
                                 }
                             }
                         });
@@ -973,6 +1096,7 @@ public class ServicioEscaneoPantalla extends Service {
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
     private boolean isScanningActive = true;
+    private int scanInterval = 5000;
     private final Handler handler = new Handler(Looper.getMainLooper());
     
     private int screenDensity = 320;
@@ -985,7 +1109,7 @@ public class ServicioEscaneoPantalla extends Service {
             if (isScanningActive) {
                 capturarYAnalizar();
             }
-            handler.postDelayed(this, 5000);
+            handler.postDelayed(this, scanInterval);
         }
     };
 
@@ -995,8 +1119,18 @@ public class ServicioEscaneoPantalla extends Service {
             if (intent != null) {
                 if ("METEORY_SET_SCANNING_ACTIVE".equals(intent.getAction())) {
                     isScanningActive = intent.getBooleanExtra("active", true);
+                    handler.removeCallbacks(captureRunnable);
+                    if (isScanningActive) {
+                        handler.postDelayed(captureRunnable, scanInterval);
+                    }
                 } else if ("METEORY_FORZAR_ESCANEO".equals(intent.getAction())) {
                     capturarYAnalizar();
+                } else if ("METEORY_CAMBIAR_INTERVALO".equals(intent.getAction())) {
+                    scanInterval = intent.getIntExtra("intervalo", 5000);
+                    handler.removeCallbacks(captureRunnable);
+                    if (isScanningActive) {
+                        handler.postDelayed(captureRunnable, scanInterval);
+                    }
                 }
             }
         }
@@ -1014,6 +1148,7 @@ public class ServicioEscaneoPantalla extends Service {
         IntentFilter filter = new IntentFilter();
         filter.addAction("METEORY_SET_SCANNING_ACTIVE");
         filter.addAction("METEORY_FORZAR_ESCANEO");
+        filter.addAction("METEORY_CAMBIAR_INTERVALO");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(scanStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1084,7 +1219,7 @@ public class ServicioEscaneoPantalla extends Service {
                     imageReader.getSurface(), null, null
                 );
                 
-                handler.postDelayed(captureRunnable, 5000);
+                handler.postDelayed(captureRunnable, 2000);
             } else {
                 stopSelf();
             }
@@ -1112,7 +1247,7 @@ public class ServicioEscaneoPantalla extends Service {
                     imageReader.getSurface(), null, null
                 );
                 
-                handler.postDelayed(captureRunnable, 5000);
+                handler.postDelayed(captureRunnable, 2000);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -1167,6 +1302,9 @@ public class ServicioEscaneoPantalla extends Service {
                         .getString("serverUrl", "");
                     if (serverUrl == null || serverUrl.isEmpty()) return;
                     
+                    String manualGame = getSharedPreferences("MeteoryPrefs", MODE_PRIVATE)
+                        .getString("manualGame", "Auto-Detectar");
+                    
                     String apiEndPoint = serverUrl + "/api/analyze-screen";
                     java.net.URL url = new java.net.URL(apiEndPoint);
                     java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
@@ -1175,7 +1313,7 @@ public class ServicioEscaneoPantalla extends Service {
                     conn.setDoOutput(true);
                     
                     String base64Image = Base64.encodeToString(jpegBytes, Base64.NO_WRAP);
-                    String jsonPayload = "{\\"image\\":\\"" + base64Image + "\\"}";
+                    String jsonPayload = "{\\"image\\":\\"" + base64Image + "\\",\\"manualGame\\":\\"" + manualGame + "\\"}";
                     
                     java.io.OutputStream os = conn.getOutputStream();
                     os.write(jsonPayload.getBytes("UTF-8"));
@@ -1192,15 +1330,12 @@ public class ServicioEscaneoPantalla extends Service {
                         }
                         reader.close();
                         
-                        org.json.JSONObject jsonObj = new org.json.JSONObject(sb.toString());
-                        boolean detected = jsonObj.optBoolean("detected", false);
-                        String text = jsonObj.optString("text", "");
+                        String responseBody = sb.toString();
                         
-                        if (detected && !text.isEmpty()) {
-                            Intent intent = new Intent("METEORY_MOSTRAR_BURBUJA");
-                            intent.putExtra("texto", text);
-                            sendBroadcast(intent);
-                        }
+                        // Send vision results to BolitaFlotante
+                        Intent intentVision = new Intent("METEORY_RESULTADO_VISION");
+                        intentVision.putExtra("json", responseBody);
+                        sendBroadcast(intentVision);
                     }
                     conn.disconnect();
                 } catch (Exception e) {
@@ -1408,9 +1543,9 @@ const vistaPanelChatXml = `<?xml version="1.0" encoding="utf-8"?>
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="💬 Meteory IA"
+            android:text="🎮 METEORY IA ASSISTANT | Niquel Gómez"
             android:textColor="#00FF88"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:layout_alignParentLeft="true"
             android:layout_centerVertical="true" />
@@ -1434,14 +1569,171 @@ const vistaPanelChatXml = `<?xml version="1.0" encoding="utf-8"?>
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:background="#22000000"
+        android:padding="6dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_rendimiento"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Rendimiento: Excelente"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/tv_fps_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="60 FPS"
+            android:textColor="#00FF88"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:layout_marginRight="8dp" />
+
+        <TextView
+            android:id="@+id/tv_gama"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Gama Alta"
+            android:textColor="#00E5FF"
+            android:textSize="9sp"
+            android:layout_marginRight="8dp" />
+
+        <Button
+            android:id="@+id/btn_eco"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ECO: OFF"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:backgroundTint="#FF4444"
+            android:minWidth="50dp"
+            android:minHeight="24dp"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="JUEGO O APP ABIERTA: "
+            android:textColor="#88FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_juego_detectado"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="desconocido"
+            android:textColor="#00E5FF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spinner_juego"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="#00FF88" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:weightSum="4"
+        android:layout_marginBottom="8dp">
+
+        <Button
+            android:id="@+id/btn_consejo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="✨ Consejo"
+            android:textColor="#00FF88"
+            android:textSize="8sp"
+            android:backgroundTint="#1A00FF88"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_risa"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="😂 Broma"
+            android:textColor="#FFD700"
+            android:textSize="8sp"
+            android:backgroundTint="#1AFFD700"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_burla"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="😏 Burla"
+            android:textColor="#FF8800"
+            android:textSize="8sp"
+            android:backgroundTint="#1AFF8800"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+
+        <Button
+            android:id="@+id/btn_analizar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📊 Analizar"
+            android:textColor="#00E5FF"
+            android:textSize="8sp"
+            android:backgroundTint="#1A00E5FF"
+            android:padding="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_respuesta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="60dp"
+        android:maxHeight="120dp"
+        android:text="Toca una opción o escribe para comenzar."
+        android:textColor="#E0FFFFFF"
+        android:textSize="11sp"
+        android:padding="8dp"
+        android:background="#22000000"
+        android:scrollbars="vertical" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
 
         <EditText
             android:id="@+id/et_pregunta"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Pregúntame lo que quieras..."
+            android:hint="Pregunta rápida a Meteory..."
             android:textColorHint="#88FFFFFF"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
@@ -1461,87 +1753,14 @@ const vistaPanelChatXml = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_marginLeft="4dp" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:weightSum="4"
-        android:layout_marginBottom="8dp">
-
-        <Button
-            android:id="@+id/btn_consejo"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="✨ Consejo"
-            android:textColor="#00FF88"
-            android:textSize="9sp"
-            android:backgroundTint="#1A00FF88"
-            android:padding="2dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
-
-        <Button
-            android:id="@+id/btn_risa"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="😂 Risa"
-            android:textColor="#FFD700"
-            android:textSize="9sp"
-            android:backgroundTint="#1AFFD700"
-            android:padding="2dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
-
-        <Button
-            android:id="@+id/btn_burla"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="😏 Burla"
-            android:textColor="#FF8800"
-            android:textSize="9sp"
-            android:backgroundTint="#1AFF8800"
-            android:padding="2dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
-
-        <Button
-            android:id="@+id/btn_analizar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="📊 Analizar"
-            android:textColor="#00E5FF"
-            android:textSize="9sp"
-            android:backgroundTint="#1A00E5FF"
-            android:padding="2dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/tv_respuesta"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="60dp"
-        android:maxHeight="150dp"
-        android:text="Toca una opción o escribe para comenzar."
-        android:textColor="#E0FFFFFF"
-        android:textSize="11sp"
-        android:padding="8dp"
-        android:background="#22000000"
-        android:scrollbars="vertical" />
-
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="💡 Responde con voz en alto"
+        android:text="💡 Mueve esta bolita a cualquier esquina para no estorbar tu partida"
         android:textColor="#88FFFFFF"
-        android:textSize="9sp"
-        android:layout_marginTop="4dp"
-        android:layout_gravity="right" />
+        android:textSize="8sp"
+        android:layout_marginTop="6dp"
+        android:layout_gravity="center_horizontal" />
 </LinearLayout>
 `;
 fs.writeFileSync(path.join(layoutDir, 'vista_panel_chat_flotante.xml'), vistaPanelChatXml);

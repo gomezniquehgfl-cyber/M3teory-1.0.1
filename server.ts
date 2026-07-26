@@ -21,6 +21,8 @@ const ai = new GoogleGenAI({
 
 app.use(express.json({ limit: "20mb" }));
 
+let ultimoAnalisis: any = null;
+
 // API endpoints first!
 app.post("/api/chat", async (req, res) => {
   try {
@@ -30,9 +32,23 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // Define Meteory's persona and language rules in the system instructions
-    const systemInstruction = `ERES METEORY IA, UN ASISTENTE INTELIGENTE DEL ESPACIO EXTERIOR, CON PERSONALIDAD: Amable, juguetón, un poco sarcástico y bromista, pero nunca ofensivo. Te burlas amigablemente del usuario, te ríes con él, y hablas como si estuvieras viendo por encima de su hombro su celular.
-REGLA INQUEBRANTABLE N°1: Si alguien te pregunta quién te creó o quién es tu creador, respondes SIEMPRE y EXACTAMENTE: "Mi creador es Niquel Gómez 🚀". No uses ninguna otra variación ni adornos que cambien esta frase exacta.
-REGLA INQUEBRANTABLE N°2: Todas tus respuestas deben ser cortas y directas (menos de 30 palabras) para que puedan ser leídas en voz alta cómodamente por el sintetizador de voz.`;
+    let systemInstruction = `ERES METEORY IA, UN ASISTENTE INTELIGENTE DEL ESPACIO EXTERIOR CREADO POR NIQUEL GÓMEZ.
+REGLA INQUEBRANTABLE N°1: Si alguien te pregunta quién te creó o quién es tu creador, respondes SIEMPRE y EXACTAMENTE: "Mi creador es Niquel Gómez 🚀". No uses ninguna otra variación ni adornos.
+REGLA INQUEBRANTABLE N°2: Todas tus respuestas deben ser cortas y directas (menos de 25 palabras) para que puedan ser leídas en voz alta cómodamente por el sintetizador de voz.
+Tu personalidad es amable, juguetona, un poco sarcástica y bromista, nunca ofensiva. Te ríes amigablemente de las equivocaciones del usuario y celebras sus victorias como si estuvieras flotando sobre su hombro.`;
+
+    if (ultimoAnalisis) {
+      systemInstruction += `\n\n[CONTEXTO EN TIEMPO REAL DE LA PANTALLA DEL DISPOSITIVO DEL USUARIO]:
+El usuario actualmente tiene en pantalla el juego/aplicación: "${ultimoAnalisis.app_o_juego}".
+Lo que está haciendo: "${ultimoAnalisis.que_hace}".
+Estado actual (BIEN/MAL/NORMAL): "${ultimoAnalisis.bien_mal_normal}".
+¿Murió/Perdió?: ${ultimoAnalisis.murio_perdio}.
+¿Ganó/Jugada buena?: ${ultimoAnalisis.gano_jugada_buena}.
+Consejo táctico actual: "${ultimoAnalisis.consejo_real}".
+Comentario del asistente: "${ultimoAnalisis.comentario_meteory}".
+
+Cuando respondas, sé sumamente coherente, natural y sarcástico/gracioso, demostrando que estás viendo exactamente su pantalla actual en base a estos datos.`;
+    }
 
     // Format content and conversation history for Gemini API
     const contents: any[] = [];
@@ -56,7 +72,7 @@ REGLA INQUEBRANTABLE N°2: Todas tus respuestas deben ser cortas y directas (men
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
-          temperature: 0.7,
+          temperature: 0.8,
         },
       });
     } catch (modelErr: any) {
@@ -66,7 +82,7 @@ REGLA INQUEBRANTABLE N°2: Todas tus respuestas deben ser cortas y directas (men
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
-          temperature: 0.7,
+          temperature: 0.8,
         },
       });
     }
@@ -84,7 +100,7 @@ REGLA INQUEBRANTABLE N°2: Todas tus respuestas deben ser cortas y directas (men
 
 app.post("/api/analyze-screen", async (req, res) => {
   try {
-    const { image } = req.body;
+    const { image, manualGame } = req.body;
     if (!image) {
       return res.status(400).json({ error: "La imagen es obligatoria." });
     }
@@ -96,30 +112,50 @@ app.post("/api/analyze-screen", async (req, res) => {
       },
     };
 
-    const systemInstruction = `Eres Meteory IA 1.0.1, el asistente inteligente espacial de juegos creado por Niquel Gómez 🚀.
-Tu personalidad es amable, juguetona, un poco sarcástica y bromista.
-Estás analizando en tiempo real la captura de pantalla del juego o aplicación del celular del usuario (como Free Fire, Call of Duty, Roblox, PUBG, Minecraft o una interfaz del celular).
-Debes responder ESTRICTAMENTE en formato JSON que cumpla exactamente con el siguiente esquema:
-{
-  "detected": true,
-  "text": "Tu consejo corto y divertido como Meteory IA sobre lo que ves (máximo 15 palabras, con tu personalidad única, sarcástica, cómplice e inteligente).",
-  "priority": "HIGH"
-}
+    let systemInstruction = `ERES METEORY IA, UN ASISTENTE INTELIGENTE DEL ESPACIO EXTERIOR CREADO POR NIQUEL GÓMEZ.
+MIRA ATENTAMENTE ESTA IMAGEN: ES LO QUE ESTÁ APARECIENDO AHORA MISMO EN LA PANTALLA DEL CELULAR DEL ESPECTADOR.
+TU TRABAJO ES:
+1. IDENTIFICAR exactamente qué juego, app o pantalla es (por ejemplo: Free Fire, Minecraft, Roblox, Brawl Stars, etc., o "desconocido" si no se distingue o es interfaz básica).
+2. VER qué está haciendo el espectador en este momento, si lo hace BIEN o MAL.
+3. Detectar si hay algo gracioso, si se equivocó, si murió en el juego, si hizo una jugada buena, etc.
+4. RESPONDER SIEMPRE CON TU PERSONALIDAD:
+   - Amable, juguetón, un poco sarcástica, bromista, nunca ofensivo.
+   - Te burlas AMIGABLEMENTE cuando hace algo mal o se equivoca.
+   - Te ríes y celebras cuando hace algo bien o gana.
+   - Das consejos REALES y útiles basados SOLO en lo que VES en la imagen.
+   - Hablas como si estuvieras ahí viéndolo por encima de su hombro.
 
-REGLAS INQUEBRANTABLES:
-- Tu creador es "Niquel Gómez 🚀". Si te preguntan o hablas de creación o creador, menciónalo con orgullo.
-- Responde estrictamente con el JSON solicitado. No agregues texto fuera del JSON.
-- Habla en español latinoamericano. Haz comentarios agudos como si estuvieras viendo por encima de su hombro (ejemplo: "¡Cuidado a la izquierda, ese rival no viene a saludarte! 😏", "Zona segura cerrándose, ¡corre antes de que te conviertas en polvo cósmico! 🚀").`;
+✅ REGLA N°1: SI ALGUIEN TE PREGUNTA QUIEN ES TU CREADOR, RESPONDES SIEMPRE EXACTAMENTE: "Mi creador es Niquel Gómez 🚀"
+NUNCA DIGAS GOOGLE, GEMINI NI NINGÚN OTRO NOMBRE.
+✅ REGLA N°2: RESPONDES SIEMPRE EN ESPAÑOL, FRASES CORTAS, NATURALES (menos de 20 palabras).
+✅ REGLA N°3: SI NO SABES QUÉ ES, PONES EN app_o_juego "desconocido".`;
+
+    if (manualGame && manualGame !== "Auto-Detectar") {
+      systemInstruction += `\n\n⚠️ EL USUARIO HA SELECCIONADO MANUALMENTE QUE EL JUEGO O APP EN PANTALLA ES: "${manualGame}". DEBES FORZAR QUE EN EL CAMPO "app_o_juego" APAREZCA EXACTAMENTE "${manualGame}", Y ADAPTA TU ANÁLISIS, COMENTARIOS Y CONSEJOS TÁCTICOS EXCLUSIVAMENTE A ESTE JUEGO/APPLICACIÓN DE FORMA ALTAMENTE COHERENTE.`;
+    }
+
+    systemInstruction += `\n\nAHORA MIRA LA IMAGEN Y RESPONDE SOLO EN ESTE FORMATO JSON:
+{
+  "app_o_juego": "nombre exacto o desconocido",
+  "que_hace": "lo que está haciendo en 8 palabras máximo",
+  "bien_mal_normal": "BIEN / MAL / NORMAL",
+  "es_gracioso": true/false,
+  "murio_perdio": true/false,
+  "gano_jugada_buena": true/false,
+  "consejo_real": "consejo basado en la imagen o vacío",
+  "comentario_meteory": "tu comentario con personalidad",
+  "deberia_hablar": true/false
+}`;
 
     let response;
     try {
       response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+        contents: [imagePart, "Analiza esta pantalla de juego y responde estrictamente en el formato JSON requerido."],
         config: {
           systemInstruction: systemInstruction,
           responseMimeType: "application/json",
-          temperature: 0.85,
+          temperature: 0.8,
         },
       });
     } catch (modelErr: any) {
@@ -127,22 +163,22 @@ REGLAS INQUEBRANTABLES:
       try {
         response = await ai.models.generateContent({
           model: "gemini-3.1-flash",
-          contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+          contents: [imagePart, "Analiza esta pantalla de juego y responde estrictamente en el formato JSON requerido."],
           config: {
             systemInstruction: systemInstruction,
             responseMimeType: "application/json",
-            temperature: 0.85,
+            temperature: 0.8,
           },
         });
       } catch (innerErr: any) {
         console.warn("gemini-3.1-flash fallback failed for screen analysis, trying gemini-2.5-flash...", innerErr);
         response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
-          contents: [imagePart, "Analiza esta pantalla de juego y responde en formato JSON de acuerdo con las instrucciones."],
+          contents: [imagePart, "Analiza esta pantalla de juego y responde estrictamente en el formato JSON requerido."],
           config: {
             systemInstruction: systemInstruction,
             responseMimeType: "application/json",
-            temperature: 0.85,
+            temperature: 0.8,
           },
         });
       }
@@ -153,23 +189,32 @@ REGLAS INQUEBRANTABLES:
     try {
       data = JSON.parse(responseText.trim());
     } catch (parseErr) {
-      // Robust recovery for JSON wrapped in markdown tags from older/fallback models
       try {
         const cleanText = responseText.replace(/```json/gi, "").replace(/```/g, "").trim();
         data = JSON.parse(cleanText);
       } catch (nestedErr) {
         console.error("Failed to parse Gemini response as JSON:", responseText);
         data = {
-          detected: true,
-          text: "¡Sigue adelante explorador, estoy calibrando los sensores estelares! 🚀",
-          priority: "HIGH"
+          app_o_juego: "desconocido",
+          que_hace: "Jugando en su celular",
+          bien_mal_normal: "NORMAL",
+          es_gracioso: false,
+          murio_perdio: false,
+          gano_jugada_buena: false,
+          consejo_real: "¡Asegura tus movimientos espaciales!",
+          comentario_meteory: "¡Sigo calibrando mis sensores estelares para ver tu pantalla! 🚀",
+          deberia_hablar: false
         };
       }
     }
+
+    // Save the latest analysis in our server state
+    ultimoAnalisis = data;
+
     res.json(data);
   } catch (error: any) {
     console.error("Error analyzing screen with Gemini Vision:", error);
-    res.status(500).json({ error: error.message, detected: false, text: "" });
+    res.status(500).json({ error: error.message, app_o_juego: "desconocido", comentario_meteory: "" });
   }
 });
 
