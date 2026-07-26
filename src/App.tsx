@@ -85,6 +85,25 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [micMode, setMicMode] = useState<"hold" | "toggle">("toggle");
 
+  // --- SERVER CONNECTION STATES ---
+  const [customServerUrl, setCustomServerUrl] = useState<string>(() => {
+    return localStorage.getItem("meteory_server_url") || "";
+  });
+
+  const getServerUrl = () => {
+    if (customServerUrl.trim()) return customServerUrl.trim();
+    const lastKnown = localStorage.getItem("meteory_last_known_origin");
+    if (lastKnown) return lastKnown;
+    return window.location.origin;
+  };
+
+  useEffect(() => {
+    const origin = window.location.origin;
+    if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1") && !origin.startsWith("file://") && !origin.startsWith("capacitor://")) {
+      localStorage.setItem("meteory_last_known_origin", origin);
+    }
+  }, []);
+
   // --- REAL FPS & FLOATING BALL OVERLAY STATES ---
   const [realFps, setRealFps] = useState<number>(60);
   const [showFloatingBall, setShowFloatingBall] = useState<boolean>(true);
@@ -574,14 +593,21 @@ export default function App() {
       const cap = (window as any).Capacitor;
       if (cap && cap.Plugins && cap.Plugins.ModoGaming) {
         const MG = cap.Plugins.ModoGaming;
+        const targetUrl = getServerUrl();
         MG.verificarPermiso().then((res: any) => {
           if (!res?.activo) {
-            MG.solicitarPermiso().catch(() => {});
+            MG.solicitarPermiso().then(() => {
+              MG.activarModoGaming({ serverUrl: targetUrl }).catch(() => {});
+            }).catch(() => {});
           } else {
-            MG.activarModoGaming({ serverUrl: window.location.origin }).catch(() => {});
+            MG.activarModoGaming({ serverUrl: targetUrl }).catch(() => {});
           }
         }).catch(() => {
-          if (MG.solicitarPermiso) MG.solicitarPermiso().catch(() => {});
+          if (MG.solicitarPermiso) {
+            MG.solicitarPermiso().then(() => {
+              MG.activarModoGaming({ serverUrl: targetUrl }).catch(() => {});
+            }).catch(() => {});
+          }
         });
       }
     } catch (e) {
@@ -2224,6 +2250,38 @@ export default function App() {
                 }`}>
                   {micPermissionGranted === true ? "CONCEDIDO" : micPermissionGranted === false ? "RECHAZADO" : "PENDIENTE"}
                 </span>
+              </div>
+
+              {/* Server URL Config */}
+              <div className="space-y-1.5 border-t border-blue-950/50 pt-2.5">
+                <label className="text-[10px] text-slate-500 uppercase tracking-widest block">URL del Servidor Meteory</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={customServerUrl}
+                    onChange={(e) => {
+                      setCustomServerUrl(e.target.value);
+                      localStorage.setItem("meteory_server_url", e.target.value);
+                    }}
+                    placeholder={getServerUrl() || "http://10.0.2.2:3000"}
+                    className="flex-1 bg-black border border-blue-950 rounded p-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500/50"
+                  />
+                  <button
+                    onClick={() => {
+                      const detected = localStorage.getItem("meteory_last_known_origin") || window.location.origin;
+                      setCustomServerUrl(detected);
+                      localStorage.setItem("meteory_server_url", detected);
+                      setErrorMessage("✓ URL restaurada al servidor detectado.");
+                      setTimeout(() => setErrorMessage(""), 2000);
+                    }}
+                    className="px-2 py-1 bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-slate-300 rounded text-[10px] font-mono uppercase"
+                  >
+                    Auto
+                  </button>
+                </div>
+                <p className="text-[8px] text-slate-500 leading-normal">
+                  Necesario para que el servicio nativo de la APK se comunique con el servidor en la nube.
+                </p>
               </div>
 
               <div className="text-[10px] text-slate-500 leading-normal border-t border-blue-950/50 pt-2 text-center">

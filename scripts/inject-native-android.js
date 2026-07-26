@@ -232,6 +232,7 @@ public class ServicioBolitaFlotante extends Service {
     private View bolita;
     private View panelChat;
     private TextView tvFps;
+    private View viewEstadoEscaneo;
     private EditText etPregunta;
     private TextView tvRespuesta;
     
@@ -301,11 +302,12 @@ public class ServicioBolitaFlotante extends Service {
 
                             // Update detected App text in our HUD panel
                             if (tvJuegoDetectado != null) {
-                                if ("Auto-Detectar".equals(manualGameSelect)) {
-                                    tvJuegoDetectado.setText(app);
-                                } else {
-                                    tvJuegoDetectado.setText(manualGameSelect + " (Manual)");
+                                String juegoActual = "Auto-Detectar".equals(manualGameSelect) ? app : manualGameSelect;
+                                String conEmoji = obtenerEmojiJuego(juegoActual) + juegoActual;
+                                if (!"Auto-Detectar".equals(manualGameSelect)) {
+                                    conEmoji += " (Manual)";
                                 }
+                                tvJuegoDetectado.setText(conEmoji);
                             }
 
                             // Update performance text
@@ -433,6 +435,7 @@ public class ServicioBolitaFlotante extends Service {
         if (layoutResId != 0) {
             bolita = LayoutInflater.from(this).inflate(layoutResId, null);
             tvFps = bolita.findViewById(getResources().getIdentifier("tv_fps", "id", getPackageName()));
+            viewEstadoEscaneo = bolita.findViewById(getResources().getIdentifier("view_estado_escaneo", "id", getPackageName()));
         }
         if (tvFps == null) {
             tvFps = new TextView(this);
@@ -491,9 +494,11 @@ public class ServicioBolitaFlotante extends Service {
                     }
                 }
                 
-                if (tvFps != null) {
-                    String scanIcon = isScanningActive ? " 🟢" : " 🔴";
-                    tvFps.setText("FPS" + scanIcon);
+                if (viewEstadoEscaneo != null) {
+                    int drawId = getResources().getIdentifier(isScanningActive ? "fondo_estado_activo" : "fondo_estado_pausado", "drawable", getPackageName());
+                    if (drawId != 0) {
+                        viewEstadoEscaneo.setBackgroundResource(drawId);
+                    }
                 }
                 
                 Intent scanStateIntent = new Intent("METEORY_SET_SCANNING_ACTIVE");
@@ -834,6 +839,22 @@ public class ServicioBolitaFlotante extends Service {
         }
     }
 
+    private String obtenerEmojiJuego(String juego) {
+        if (juego == null) return "🎮 ";
+        String j = juego.toLowerCase(Locale.ROOT);
+        if (j.contains("free fire")) return "🔥 ";
+        if (j.contains("minecraft")) return "⛏️ ";
+        if (j.contains("roblox")) return "🧱 ";
+        if (j.contains("call of duty") || j.contains("cod")) return "🔫 ";
+        if (j.contains("pubg")) return "🪂 ";
+        if (j.contains("brawl stars")) return "🌟 ";
+        if (j.contains("clash royale")) return "👑 ";
+        if (j.contains("tiktok") || j.contains("youtube")) return "📹 ";
+        if (j.contains("escritorio") || j.contains("desktop") || j.contains("inicio")) return "📱 ";
+        if (j.contains("desconocido")) return "❓ ";
+        return "🎮 ";
+    }
+
     private void iniciarMedidorFPS() {
         frameCallback = new Choreographer.FrameCallback() {
             @Override
@@ -848,8 +869,7 @@ public class ServicioBolitaFlotante extends Service {
                         ui.post(new Runnable() {
                             @Override public void run() {
                                 if (tvFps != null) {
-                                    String scanIcon = isScanningActive ? " 🟢" : " 🔴";
-                                    tvFps.setText(realFps + " FPS" + scanIcon);
+                                    tvFps.setText(String.valueOf(realFps));
                                     int color = realFps >= 55 ? Color.parseColor("#00FF88") :
                                                 realFps >= 35 ? Color.parseColor("#FFD700") :
                                                 Color.parseColor("#FF4444");
@@ -1496,18 +1516,32 @@ fs.writeFileSync(path.join(packageDir, 'MainActivity.java'), mainActivityContent
 
 // 8. Layout XMLs & Drawables
 const vistaBolitaXml = `<?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/tv_fps"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="72dp"
     android:layout_height="72dp"
-    android:gravity="center"
-    android:background="@drawable/fondo_bolita"
-    android:text="60 FPS"
-    android:textColor="#00FF88"
-    android:textSize="12sp"
-    android:textStyle="bold"
-    android:elevation="12dp"
-    android:fontFamily="monospace" />
+    android:elevation="12dp">
+
+    <TextView
+        android:id="@+id/tv_fps"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:background="@drawable/fondo_bolita"
+        android:text="60"
+        android:textColor="#00FF88"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:fontFamily="monospace" />
+
+    <View
+        android:id="@+id/view_estado_escaneo"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/fondo_estado_activo" />
+</FrameLayout>
 `;
 fs.writeFileSync(path.join(layoutDir, 'vista_bolita_fps.xml'), vistaBolitaXml);
 
@@ -1788,6 +1822,21 @@ const fondoBolitaXml = `<?xml version="1.0" encoding="utf-8"?>
 `;
 fs.writeFileSync(path.join(drawableDir, 'fondo_bolita.xml'), fondoBolitaXml);
 fs.writeFileSync(path.join(drawableDir, 'fondo_bolita_fps.xml'), fondoBolitaXml);
+
+const fondoEstadoActivoXml = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#00FF88" />
+</shape>
+`;
+const fondoEstadoPausadoXml = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FF4444" />
+</shape>
+`;
+fs.writeFileSync(path.join(drawableDir, 'fondo_estado_activo.xml'), fondoEstadoActivoXml);
+fs.writeFileSync(path.join(drawableDir, 'fondo_estado_pausado.xml'), fondoEstadoPausadoXml);
 
 // 9. Update AndroidManifest.xml
 if (fs.existsSync(manifestPath)) {
