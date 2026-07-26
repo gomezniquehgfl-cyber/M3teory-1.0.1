@@ -636,8 +636,8 @@ public class ServicioBolitaFlotante extends Service {
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setDoOutput(true);
                     
-                    String escapedPrompt = prompt.replace("\"", "\\\"");
-                    String jsonPayload = "{\"message\":\"" + escapedPrompt + "\"}";
+                    String escapedPrompt = prompt.replace("\\\"", "\\\\\\\"");
+                    String jsonPayload = "{\\\"message\\\":\\\"" + escapedPrompt + "\\\"}";
                     
                     java.io.OutputStream os = conn.getOutputStream();
                     os.write(jsonPayload.getBytes("UTF-8"));
