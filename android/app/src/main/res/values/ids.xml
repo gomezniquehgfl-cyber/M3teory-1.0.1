@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item type="id" name="vista_bolita_flotante" />
+    <item type="id" name="vista_panel_asistente" />
+    <item type="id" name="vista_burbuja_respuesta" />
+    <item type="id" name="canal_notificacion_meteory" />
+</resources>

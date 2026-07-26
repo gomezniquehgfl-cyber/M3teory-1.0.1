@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<foreground-service-types xmlns:android="http://schemas.android.com/apk/res/android">
+    <service android:name="com.meteory.ia.ServicioBolitaFlotante">
+        <type android:name="specialUse">
+            <property android:name="android:service.specialUse.reason"
+                android:value="Mostrar contador FPS y panel de asistente flotante sobre juegos y aplicaciones para ayudar al usuario en tiempo real." />
+        </type>
+        <type android:name="mediaProjection">
+            <property android:name="android:service.mediaProjection.reason"
+                android:value="Analizar el contenido de la pantalla con inteligencia artificial para dar consejos y comentarios en tiempo real." />
+        </type>
+        <type android:name="mediaPlayback">
+            <property android:name="android:service.mediaPlayback.reason"
+                android:value="Reproducir respuestas de voz en alto del asistente de inteligencia artificial." />
+        </type>
+    </service>
+    <service android:name="com.meteory.ia.ServicioEscaneoPantalla">
+        <type android:name="mediaProjection">
+            <property android:name="android:service.mediaProjection.reason"
+                android:value="Capturar pantalla para análisis de IA en tiempo real." />
+        </type>
+        <type android:name="specialUse">
+            <property android:name="android:service.specialUse.reason"
+                android:value="Supervisión de rendimiento y streaming de captura para juegos." />
+        </type>
+    </service>
+</foreground-service-types>
