@@ -27,6 +27,12 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VozPlugin.class);
         super.onCreate(savedInstanceState);
 
+        // Ocultar bolita al abrir la app en primer plano
+        try {
+            Intent intentOcultar = new Intent("METEORY_OCULTAR_BOLITA");
+            sendBroadcast(intentOcultar);
+        } catch (Exception e) {}
+
         // Registrar lanzador para permiso de superposición
         lanzadorSuperposicion = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -92,19 +98,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void iniciarServiciosModoGaming() {
-        // ✅ PEDIR EXPLÍCITAMENTE QUITAR OPTIMIZACIÓN DE BATERÍA EN HONOR / ANDROID
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                String paquete = getPackageName();
-                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-                if (pm != null && !pm.isIgnoringBatteryOptimizations(paquete)) {
-                    Intent intentBat = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intentBat.setData(Uri.parse("package:" + paquete));
-                    startActivity(intentBat);
-                }
-            } catch (Exception e) { e.printStackTrace(); }
-        }
-
         Intent iBolita = new Intent(this, ServicioBolitaFlotante.class);
         iBolita.putExtra("isScanningActive", true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -125,8 +118,30 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void cerrarAppCompletamente() {
+        try {
+            Intent intentMostrar = new Intent("METEORY_MOSTRAR_BOLITA");
+            sendBroadcast(intentMostrar);
+        } catch (Exception e) {}
         moveTaskToBack(true);
         finishAffinity();
         finishAndRemoveTask();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            Intent intentOcultar = new Intent("METEORY_OCULTAR_BOLITA");
+            sendBroadcast(intentOcultar);
+        } catch (Exception e) {}
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try {
+            Intent intentMostrar = new Intent("METEORY_MOSTRAR_BOLITA");
+            sendBroadcast(intentMostrar);
+        } catch (Exception e) {}
     }
 }

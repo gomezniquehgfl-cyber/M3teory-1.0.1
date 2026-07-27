@@ -13,11 +13,6 @@ import android.graphics.PixelFormat;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
-import android.os.PowerManager;
-import android.net.wifi.WifiManager;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.content.ComponentName;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -105,6 +100,28 @@ public class ServicioBolitaFlotante extends Service {
                             mostrarBurbujaFlotante(texto);
                         }
                     }
+                } else if ("METEORY_OCULTAR_BOLITA".equals(intent.getAction())) {
+                    if (bolita != null && wm != null) {
+                        try {
+                            wm.removeView(bolita);
+                        } catch (Exception e) {}
+                    }
+                    if (panelChat != null && wm != null && isChatOpen) {
+                        try {
+                            wm.removeView(panelChat);
+                        } catch (Exception e) {}
+                        isChatOpen = false;
+                    }
+                    ocultarBurbujaFlotante();
+                } else if ("METEORY_MOSTRAR_BOLITA".equals(intent.getAction())) {
+                    if (bolita != null && wm != null) {
+                        try {
+                            wm.removeView(bolita);
+                        } catch (Exception e) {}
+                        try {
+                            wm.addView(bolita, params);
+                        } catch (Exception e) {}
+                    }
                 } else if ("METEORY_RESULTADO_VISION".equals(intent.getAction())) {
                     String jsonStr = intent.getStringExtra("json");
                     if (jsonStr != null && !jsonStr.isEmpty()) {
@@ -175,6 +192,8 @@ public class ServicioBolitaFlotante extends Service {
         filter.addAction("METEORY_RESPUESTA_GEMINI");
         filter.addAction("METEORY_MOSTRAR_BURBUJA");
         filter.addAction("METEORY_RESULTADO_VISION");
+        filter.addAction("METEORY_OCULTAR_BOLITA");
+        filter.addAction("METEORY_MOSTRAR_BOLITA");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receptorRespuesta, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -244,51 +263,6 @@ public class ServicioBolitaFlotante extends Service {
         } else {
             startForeground(3030, notif);
         }
-
-        // ✅ PROTECCIÓN ANTI-MUERTE HONOR: EVITA QUE EL PROCESO SE DUERMA
-        try {
-            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-            PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "MeteoryIA::WakeLockBolita"
-            );
-            wakeLock.setReferenceCounted(false);
-            wakeLock.acquire(10*60*1000L /*10 minutos*/);
-        } catch (Exception e) { e.printStackTrace(); }
-
-        // ✅ MANTENER WIFI ACTIVO SI LO NECESITA GEMINI
-        try {
-            WifiManager wmWifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-            WifiManager.WifiLock wifiLock = wmWifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MeteoryIA::WifiLock");
-            wifiLock.acquire();
-        } catch (Exception e) { e.printStackTrace(); }
-
-        // ✅ SI ES HONOR / HUAWEI: INTENTAR PEDIR PERMISOS EXTRA
-        if (Build.MANUFACTURER.equalsIgnoreCase("HONOR") || Build.MANUFACTURER.equalsIgnoreCase("HUAWEI")) {
-            try {
-                Intent honorIntent = new Intent();
-                honorIntent.setComponent(new ComponentName("com.huawei.systemmanager",
-                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"));
-                honorIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            } catch (Exception e) { /* ignorar */ }
-        }
-    }
-
-    @Override
-    public void onTaskRemoved(Intent rootIntent) {
-        super.onTaskRemoved(rootIntent);
-
-        // ✅ REINICIAR SERVICIO AUTOMÁTICAMENTE EN 1 SEGUNDO
-        try {
-            AlarmManager amAlarm = (AlarmManager) getSystemService(ALARM_SERVICE);
-            PendingIntent restartIntent = PendingIntent.getService(
-                this,
-                12345,
-                new Intent(this, ServicioBolitaFlotante.class),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
-            amAlarm.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1000, restartIntent);
-        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private void crearBolita() {
